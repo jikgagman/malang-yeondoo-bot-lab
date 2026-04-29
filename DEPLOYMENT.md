@@ -34,7 +34,8 @@ SQLite DB는 `/app/data/duo.sqlite`에 저장됩니다. 영구 디스크가 없�
 
 ## Render 배포 예시
 
-- New Web Service
+- Blueprint 배포: `render.yaml` 선택
+- 또는 New Web Service
 - Runtime: Docker
 - Root Directory: 현재 프로젝트 폴더
 - Environment Variables에 위 값 입력

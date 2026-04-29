@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: malang-yeondoo-bot-lab
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: RIOT_API_KEY
+        sync: false
+      - key: RIOT_REGION
+        value: asia
+      - key: RIOT_PLATFORM
+        value: kr
+      - key: PORT
+        value: 4173
+    disk:
+      name: malang-yeondoo-data
+      mountPath: /app/data
+      sizeGB: 1
