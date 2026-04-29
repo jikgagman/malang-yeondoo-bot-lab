@@ -1,0 +1,10 @@
+{
+  "name": "malang-yeondoo-bot-lab",
+  "version": "0.2.0",
+  "private": true,
+  "description": "말랑연두 바텀 듀오 전적 통계와 LoL 픽창 자동 추천 웹앱",
+  "scripts": {
+    "start": "node lcu-proxy.js",
+    "check": "node --check app.js && node --check lcu-proxy.js"
+  }
+}

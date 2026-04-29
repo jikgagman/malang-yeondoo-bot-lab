@@ -1,0 +1,728 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const http = require("node:http");
+const https = require("node:https");
+const os = require("node:os");
+const { execFileSync } = require("node:child_process");
+
+const PORT = Number(process.env.PORT || 4173);
+const ROOT = __dirname;
+const DATA_DIR = path.join(ROOT, "data");
+const CACHE_FILE = path.join(DATA_DIR, "duo-stats-cache.json");
+const DB_FILE = path.join(DATA_DIR, "duo.sqlite");
+const RIOT_REGION = process.env.RIOT_REGION || "asia";
+const RIOT_PLATFORM = process.env.RIOT_PLATFORM || "kr";
+const DUO_PLAYERS = [
+  { key: "malang", gameName: "말랑말랑바우게", tagLine: "KR1" },
+  { key: "yeondoo", gameName: "연두색연두", tagLine: "KR1" },
+];
+
+loadEnvFile();
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+};
+
+const championIdMap = {
+  12: "알리스타",
+  21: "미스 포츈",
+  22: "애쉬",
+  25: "모르가나",
+  37: "소나",
+  40: "잔나",
+  51: "케이틀린",
+  53: "블리츠크랭크",
+  67: "베인",
+  81: "이즈리얼",
+  89: "레오나",
+  99: "럭스",
+  117: "룰루",
+  119: "드레이븐",
+  143: "자이라",
+  145: "카이사",
+  147: "세라핀",
+  201: "브라움",
+  202: "진",
+  221: "제리",
+  222: "징크스",
+  235: "세나",
+  236: "루시안",
+  350: "유미",
+  360: "사미라",
+  412: "쓰레쉬",
+  429: "칼리스타",
+  497: "라칸",
+  498: "자야",
+  526: "렐",
+  555: "파이크",
+  902: "밀리오",
+};
+
+const championNameMap = {
+  Ashe: "애쉬",
+  Blitzcrank: "블리츠크랭크",
+  Jhin: "진",
+  Jinx: "징크스",
+  Kaisa: "카이사",
+  LeeSin: "리 신",
+  Leona: "레오나",
+  Lulu: "룰루",
+  Malphite: "말파이트",
+  Milio: "밀리오",
+  MissFortune: "미스 포츈",
+  Nautilus: "노틸러스",
+  Rakan: "라칸",
+  Seraphine: "세라핀",
+  Sion: "사이온",
+  Xayah: "자야",
+  Ziggs: "직스",
+};
+
+function loadEnvFile() {
+  const envPath = path.join(ROOT, ".env");
+  if (!fs.existsSync(envPath)) return;
+
+  fs.readFileSync(envPath, "utf8")
+    .split(/\r?\n/)
+    .forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) return;
+      const separator = trimmed.indexOf("=");
+      if (separator === -1) return;
+      const key = trimmed.slice(0, separator).trim();
+      const value = trimmed.slice(separator + 1).trim();
+      if (!process.env[key]) process.env[key] = value;
+    });
+}
+
+function sqlValue(value) {
+  if (value === null || value === undefined) return "NULL";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "NULL";
+  if (typeof value === "boolean") return value ? "1" : "0";
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function sqliteExec(sql) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  execFileSync("sqlite3", ["-bail", "-cmd", ".timeout 5000", DB_FILE], {
+    input: sql,
+    encoding: "utf8",
+  });
+}
+
+function sqliteJson(sql) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const output = execFileSync("sqlite3", ["-json", "-cmd", ".timeout 5000", DB_FILE, sql], {
+    encoding: "utf8",
+  }).trim();
+  return output ? JSON.parse(output) : [];
+}
+
+function initDb() {
+  sqliteExec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS players (
+      player_key TEXT PRIMARY KEY,
+      game_name TEXT NOT NULL,
+      tag_line TEXT NOT NULL,
+      puuid TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS matches (
+      match_id TEXT PRIMARY KEY,
+      game_end_timestamp INTEGER NOT NULL,
+      queue_id INTEGER NOT NULL,
+      win INTEGER NOT NULL,
+      pair TEXT NOT NULL,
+      malang_champion TEXT NOT NULL,
+      yeondoo_champion TEXT NOT NULL,
+      kills INTEGER NOT NULL,
+      deaths INTEGER NOT NULL,
+      assists INTEGER NOT NULL,
+      kill_participation INTEGER NOT NULL,
+      first_dragon INTEGER NOT NULL,
+      game_duration INTEGER NOT NULL,
+      raw_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS sync_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+}
+
+function upsertPlayers(accounts) {
+  const now = new Date().toISOString();
+  const values = DUO_PLAYERS.map((player, index) => {
+    const account = accounts[index];
+    return `(${sqlValue(player.key)}, ${sqlValue(player.gameName)}, ${sqlValue(player.tagLine)}, ${sqlValue(account.puuid)}, ${sqlValue(now)})`;
+  }).join(",\n");
+
+  sqliteExec(`
+    INSERT INTO players (player_key, game_name, tag_line, puuid, updated_at)
+    VALUES ${values}
+    ON CONFLICT(player_key) DO UPDATE SET
+      game_name = excluded.game_name,
+      tag_line = excluded.tag_line,
+      puuid = excluded.puuid,
+      updated_at = excluded.updated_at;
+  `);
+}
+
+function upsertMatches(matches) {
+  if (!matches.length) return;
+  const now = new Date().toISOString();
+  const values = matches
+    .map(
+      (match) => `(
+        ${sqlValue(match.matchId)},
+        ${sqlValue(match.gameEndTimestamp)},
+        ${sqlValue(match.queueId)},
+        ${sqlValue(match.win)},
+        ${sqlValue(match.pair)},
+        ${sqlValue(match.malangChampion)},
+        ${sqlValue(match.yeondooChampion)},
+        ${sqlValue(match.duoKda.kills)},
+        ${sqlValue(match.duoKda.deaths)},
+        ${sqlValue(match.duoKda.assists)},
+        ${sqlValue(match.duoKillParticipation)},
+        ${sqlValue(match.firstDragon)},
+        ${sqlValue(match.gameDuration)},
+        ${sqlValue(JSON.stringify(match))},
+        ${sqlValue(now)}
+      )`,
+    )
+    .join(",\n");
+
+  sqliteExec(`
+    INSERT INTO matches (
+      match_id, game_end_timestamp, queue_id, win, pair, malang_champion, yeondoo_champion,
+      kills, deaths, assists, kill_participation, first_dragon, game_duration, raw_json, updated_at
+    )
+    VALUES ${values}
+    ON CONFLICT(match_id) DO UPDATE SET
+      game_end_timestamp = excluded.game_end_timestamp,
+      queue_id = excluded.queue_id,
+      win = excluded.win,
+      pair = excluded.pair,
+      malang_champion = excluded.malang_champion,
+      yeondoo_champion = excluded.yeondoo_champion,
+      kills = excluded.kills,
+      deaths = excluded.deaths,
+      assists = excluded.assists,
+      kill_participation = excluded.kill_participation,
+      first_dragon = excluded.first_dragon,
+      game_duration = excluded.game_duration,
+      raw_json = excluded.raw_json,
+      updated_at = excluded.updated_at;
+  `);
+}
+
+function setSyncMeta(key, value) {
+  sqliteExec(`
+    INSERT INTO sync_meta (key, value)
+    VALUES (${sqlValue(key)}, ${sqlValue(value)})
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+  `);
+}
+
+function getSyncMeta(key) {
+  const rows = sqliteJson(`SELECT value FROM sync_meta WHERE key = ${sqlValue(key)} LIMIT 1;`);
+  return rows[0]?.value || null;
+}
+
+function readMatchesFromDb(limit = 80) {
+  return sqliteJson(`
+    SELECT raw_json
+    FROM matches
+    ORDER BY game_end_timestamp DESC
+    LIMIT ${Number(limit)};
+  `).map((row) => JSON.parse(row.raw_json));
+}
+
+function seedDbFromJsonCache() {
+  const cached = readCachedStats();
+  if (!cached?.matches?.length) return [];
+  upsertMatches(cached.matches);
+  setSyncMeta("last_match_sync", cached.updatedAt || new Date().toISOString());
+  return cached.matches;
+}
+
+function riotRequest(host, endpoint) {
+  const apiKey = process.env.RIOT_API_KEY;
+  if (!apiKey) {
+    throw new Error(".env에 RIOT_API_KEY가 필요해요.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: host,
+        path: endpoint,
+        method: "GET",
+        headers: {
+          "X-Riot-Token": apiKey,
+          Accept: "application/json",
+        },
+      },
+      (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          if (response.statusCode >= 400) {
+            reject(new Error(`Riot API ${response.statusCode}: ${body.slice(0, 140)}`));
+            return;
+          }
+          try {
+            resolve(body ? JSON.parse(body) : null);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function riotAccountEndpoint(player) {
+  return `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(player.gameName)}/${encodeURIComponent(player.tagLine)}`;
+}
+
+async function fetchDuoMatches() {
+  const regionalHost = `${RIOT_REGION}.api.riotgames.com`;
+  const accounts = await Promise.all(DUO_PLAYERS.map((player) => riotRequest(regionalHost, riotAccountEndpoint(player))));
+  upsertPlayers(accounts);
+  const [malangAccount, yeondooAccount] = accounts;
+  const matchIds = await riotRequest(
+    regionalHost,
+    `/lol/match/v5/matches/by-puuid/${encodeURIComponent(malangAccount.puuid)}/ids?start=0&count=50`,
+  );
+  const details = await Promise.all(matchIds.slice(0, 40).map((matchId) => riotRequest(regionalHost, `/lol/match/v5/matches/${matchId}`)));
+
+  return details
+    .map((match) => summarizeMatch(match, malangAccount.puuid, yeondooAccount.puuid))
+    .filter(Boolean);
+}
+
+function summarizeMatch(match, malangPuuid, yeondooPuuid) {
+  const participants = match?.info?.participants || [];
+  const malang = participants.find((participant) => participant.puuid === malangPuuid);
+  const yeondoo = participants.find((participant) => participant.puuid === yeondooPuuid);
+  if (!malang || !yeondoo) return null;
+
+  const sameTeam = malang.teamId === yeondoo.teamId;
+  if (!sameTeam) return null;
+  const malangPosition = malang.teamPosition || malang.individualPosition;
+  const yeondooPosition = yeondoo.teamPosition || yeondoo.individualPosition;
+  if (malangPosition !== "BOTTOM" || yeondooPosition !== "UTILITY") return null;
+
+  const duoKills = malang.kills + yeondoo.kills;
+  const duoAssists = malang.assists + yeondoo.assists;
+  const duoDeaths = malang.deaths + yeondoo.deaths;
+  const pair = `${toKoreanChampion(malang.championName)}+${toKoreanChampion(yeondoo.championName)}`;
+  const teamData = (match.info.teams || []).find((item) => item.teamId === malang.teamId);
+  const malangKillParticipation = Number(malang.challenges?.killParticipation || 0);
+  const yeondooKillParticipation = Number(yeondoo.challenges?.killParticipation || 0);
+
+  return {
+    matchId: match.metadata.matchId,
+    gameEndTimestamp: match.info.gameEndTimestamp,
+    win: Boolean(malang.win && yeondoo.win),
+    pair,
+    malangChampion: toKoreanChampion(malang.championName),
+    yeondooChampion: toKoreanChampion(yeondoo.championName),
+    duoKda: {
+      kills: duoKills,
+      deaths: duoDeaths,
+      assists: duoAssists,
+    },
+    duoKillParticipation: Math.round(((malangKillParticipation + yeondooKillParticipation) / 2) * 100),
+    firstDragon: Boolean(teamData?.objectives?.dragon?.first),
+    gameDuration: match.info.gameDuration,
+    queueId: match.info.queueId,
+  };
+}
+
+function toKoreanChampion(championName) {
+  return championNameMap[championName] || championName || "알 수 없음";
+}
+
+function buildStats(matches, source) {
+  const wins = matches.filter((match) => match.win).length;
+  const total = matches.length;
+  const pairCounts = new Map();
+  const pairWins = new Map();
+  let killParticipation = 0;
+  let kdaKills = 0;
+  let kdaDeaths = 0;
+  let kdaAssists = 0;
+  let firstDragons = 0;
+
+  matches.forEach((match) => {
+    pairCounts.set(match.pair, (pairCounts.get(match.pair) || 0) + 1);
+    if (match.win) pairWins.set(match.pair, (pairWins.get(match.pair) || 0) + 1);
+    killParticipation += match.duoKillParticipation;
+    kdaKills += match.duoKda.kills;
+    kdaDeaths += match.duoKda.deaths;
+    kdaAssists += match.duoKda.assists;
+    if (match.firstDragon) firstDragons += 1;
+  });
+
+  const bestPair = [...pairCounts.entries()].sort((a, b) => {
+    const aRate = (pairWins.get(a[0]) || 0) / a[1];
+    const bRate = (pairWins.get(b[0]) || 0) / b[1];
+    return b[1] - a[1] || bRate - aRate;
+  })[0];
+  const kda = kdaDeaths ? ((kdaKills + kdaAssists) / kdaDeaths).toFixed(2) : (kdaKills + kdaAssists).toFixed(2);
+
+  return {
+    source,
+    updatedAt: new Date().toISOString(),
+    storage: "sqlite",
+    matches,
+    cards: [
+      ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `${total}게임 중 ${wins}승`],
+      ["평균 듀오 KDA", kda, `합산 ${kdaKills}/${kdaDeaths}/${kdaAssists}`],
+      ["킬 관여율", total ? `${Math.round(killParticipation / total)}%` : "-", "두 명 합산 평균"],
+      ["첫 용 연결률", total ? `${Math.round((firstDragons / total) * 100)}%` : "-", "팀 첫 용 획득 기준"],
+      ["베스트 조합", bestPair ? bestPair[0] : "-", bestPair ? `${bestPair[1]}게임 표본` : "데이터 수집 전"],
+      ["최근 매치 수", String(total), "DB에 저장된 바텀 듀오 게임"],
+      ["데이터 출처", source === "riot" ? "Riot API" : source === "sqlite" ? "SQLite DB" : "샘플", "서버 DB 기반 표시"],
+      ["갱신 시각", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }), "로컬 서버 기준"],
+    ],
+  };
+}
+
+function fallbackStats(reason) {
+  return {
+    ...buildStats(
+      [
+        {
+          win: true,
+          pair: "징크스+룰루",
+          duoKda: { kills: 11, deaths: 3, assists: 24 },
+          duoKillParticipation: 71,
+          firstDragon: true,
+        },
+        {
+          win: true,
+          pair: "애쉬+세라핀",
+          duoKda: { kills: 8, deaths: 4, assists: 31 },
+          duoKillParticipation: 68,
+          firstDragon: true,
+        },
+        {
+          win: false,
+          pair: "카이사+노틸러스",
+          duoKda: { kills: 7, deaths: 8, assists: 15 },
+          duoKillParticipation: 57,
+          firstDragon: false,
+        },
+      ],
+      "sample",
+    ),
+    error: reason,
+  };
+}
+
+function readCachedStats() {
+  if (!fs.existsSync(CACHE_FILE)) return null;
+  return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+}
+
+function writeCachedStats(stats) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(stats, null, 2));
+}
+
+async function statsPayload(forceRefresh = false) {
+  initDb();
+  const lastSync = getSyncMeta("last_match_sync");
+  let dbMatches = readMatchesFromDb();
+  if (!dbMatches.length) {
+    seedDbFromJsonCache();
+    dbMatches = readMatchesFromDb();
+  }
+  const cacheAge = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
+
+  if (!forceRefresh && dbMatches.length && cacheAge < 1000 * 60 * 30) {
+    return buildStats(dbMatches, "sqlite");
+  }
+
+  try {
+    const matches = await fetchDuoMatches();
+    upsertMatches(matches);
+    setSyncMeta("last_match_sync", new Date().toISOString());
+    const stats = buildStats(readMatchesFromDb(), "riot");
+    writeCachedStats(stats);
+    return stats;
+  } catch (error) {
+    console.error("stats sync failed:", error.message);
+    const storedMatches = readMatchesFromDb();
+    if (storedMatches.length) return { ...buildStats(storedMatches, "sqlite"), error: error.message };
+    const cached = readCachedStats();
+    return cached ? { ...cached, error: error.message } : fallbackStats(error.message);
+  }
+}
+
+function lockfileCandidates() {
+  const home = os.homedir();
+  return [
+    "/Applications/League of Legends.app/Contents/LoL/lockfile",
+    path.join(home, "Applications/League of Legends.app/Contents/LoL/lockfile"),
+    path.join(home, "Library/Application Support/Riot Games/League of Legends/lockfile"),
+    "C:/Riot Games/League of Legends/lockfile",
+    "C:/Program Files/Riot Games/League of Legends/lockfile",
+  ];
+}
+
+function readLockfile() {
+  const explicitPath = process.env.LCU_LOCKFILE;
+  const candidates = explicitPath ? [explicitPath] : lockfileCandidates();
+  const lockfilePath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!lockfilePath) {
+    throw new Error("LoL lockfile을 찾지 못했어요. 클라이언트가 켜져 있는지 확인해주세요.");
+  }
+
+  const [name, pid, port, password, protocol] = fs.readFileSync(lockfilePath, "utf8").trim().split(":");
+  return {
+    name,
+    pid,
+    port,
+    password,
+    protocol,
+  };
+}
+
+function lcuRequest(endpoint) {
+  const lockfile = readLockfile();
+  const auth = Buffer.from(`riot:${lockfile.password}`).toString("base64");
+
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: "127.0.0.1",
+        port: lockfile.port,
+        path: endpoint,
+        method: "GET",
+        rejectUnauthorized: false,
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: "application/json",
+        },
+      },
+      (response) => {
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          if (response.statusCode >= 400) {
+            reject(new Error(`LCU ${endpoint} responded ${response.statusCode}`));
+            return;
+          }
+          try {
+            resolve(body ? JSON.parse(body) : null);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      },
+    );
+
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function normalizeChampSelect(session) {
+  if (!session) return null;
+  const normalizeMember = (member) => ({
+    cellId: member.cellId,
+    championId: member.championId,
+    championName: championIdMap[member.championId] || "",
+    assignedPosition: member.assignedPosition,
+    summonerId: member.summonerId,
+  });
+
+  return {
+    localPlayerCellId: session.localPlayerCellId,
+    actions: session.actions,
+    myTeam: Array.isArray(session.myTeam) ? session.myTeam.map(normalizeMember) : [],
+    theirTeam: Array.isArray(session.theirTeam) ? session.theirTeam.map(normalizeMember) : [],
+  };
+}
+
+async function livePayload() {
+  const phase = await lcuRequest("/lol-gameflow/v1/gameflow-phase");
+  let champSelect = null;
+
+  if (phase === "ChampSelect") {
+    champSelect = normalizeChampSelect(await lcuRequest("/lol-champ-select/v1/session"));
+  }
+
+  return {
+    ok: true,
+    phase,
+    champSelect,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function currentUserPayload() {
+  const summoner = await lcuRequest("/lol-summoner/v1/current-summoner");
+  const displayName = summoner.gameName || summoner.displayName || "";
+  const tagLine = summoner.tagLine || "";
+  const known = DUO_PLAYERS.find((player) => {
+    const sameName = player.gameName === displayName || `${player.gameName}#${player.tagLine}` === displayName;
+    const sameTag = !tagLine || player.tagLine === tagLine;
+    return sameName && sameTag;
+  });
+
+  return {
+    ok: true,
+    user: known?.key || null,
+    gameName: displayName,
+    tagLine,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function mockChampSelectPayload() {
+  return {
+    ok: true,
+    phase: "ChampSelect",
+    champSelect: {
+      localPlayerCellId: 1,
+      actions: [
+        [
+          { actorCellId: 0, championId: 222, completed: true },
+          { actorCellId: 1, championId: 147, completed: false },
+          { actorCellId: 5, championId: 145, completed: true },
+          { actorCellId: 6, championId: 53, completed: true },
+        ],
+      ],
+      myTeam: [
+        { cellId: 0, championId: 222, championName: "징크스", assignedPosition: "bottom" },
+        { cellId: 1, championId: 0, championName: "", assignedPosition: "utility" },
+      ],
+      theirTeam: [
+        { cellId: 5, championId: 145, championName: "카이사", assignedPosition: "bottom" },
+        { cellId: 6, championId: 53, championName: "블리츠크랭크", assignedPosition: "utility" },
+      ],
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function sendJson(response, statusCode, payload) {
+  response.writeHead(statusCode, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  response.end(JSON.stringify(payload));
+}
+
+function serveStatic(request, response) {
+  const url = new URL(request.url, `http://localhost:${PORT}`);
+  const requestedPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  const filePath = path.join(ROOT, requestedPath);
+
+  if (!filePath.startsWith(ROOT)) {
+    response.writeHead(403);
+    response.end("Forbidden");
+    return;
+  }
+
+  fs.readFile(filePath, (error, data) => {
+    if (error) {
+      response.writeHead(404);
+      response.end("Not found");
+      return;
+    }
+
+    response.writeHead(200, {
+      "Content-Type": mimeTypes[path.extname(filePath)] || "application/octet-stream",
+      "Cache-Control": "no-store",
+    });
+    response.end(data);
+  });
+}
+
+const server = http.createServer(async (request, response) => {
+  if (request.url.startsWith("/api/health")) {
+    sendJson(response, 200, {
+      ok: true,
+      storage: "sqlite",
+      database: DB_FILE,
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (request.url.startsWith("/api/current-user")) {
+    try {
+      sendJson(response, 200, await currentUserPayload());
+    } catch (error) {
+      sendJson(response, 503, {
+        ok: false,
+        user: null,
+        error: error.message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (request.url.startsWith("/api/stats")) {
+    try {
+      const url = new URL(request.url, `http://localhost:${PORT}`);
+      sendJson(response, 200, await statsPayload(url.searchParams.get("refresh") === "1"));
+    } catch (error) {
+      sendJson(response, 503, {
+        ok: false,
+        error: error.message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (request.url.startsWith("/api/live")) {
+    try {
+      const url = new URL(request.url, `http://localhost:${PORT}`);
+      if (url.searchParams.get("mock") === "champselect") {
+        sendJson(response, 200, mockChampSelectPayload());
+        return;
+      }
+      sendJson(response, 200, await livePayload());
+    } catch (error) {
+      sendJson(response, 503, {
+        ok: false,
+        phase: "Disconnected",
+        error: error.message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  serveStatic(request, response);
+});
+
+server.listen(PORT, () => {
+  console.log(`말랑연두 바텀 연구소: http://localhost:${PORT}`);
+  console.log("LoL 클라이언트를 켠 뒤 픽창에 들어가면 자동 추천이 표시됩니다.");
+});
