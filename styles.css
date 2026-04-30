@@ -931,47 +931,6 @@ a {
   line-height: 1.5;
 }
 
-.tilt-counter-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  margin-top: 14px;
-  padding: 16px 18px;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background:
-    repeating-linear-gradient(112deg, rgba(255, 185, 94, 0.16) 0 2px, transparent 2px 8px),
-    #fff8e9;
-  box-shadow: 5px 6px 0 rgba(40, 49, 66, 0.1);
-}
-
-.tilt-counter-card small {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.tilt-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tilt-buttons button {
-  min-height: 44px;
-  padding: 9px 14px;
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  background: var(--rose);
-  box-shadow: 3px 4px 0 rgba(40, 49, 66, 0.12);
-  color: var(--ink);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 900;
-}
-
 .status-badge {
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -1503,11 +1462,6 @@ select {
   }
 
   .live-status-card {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .tilt-counter-card {
     align-items: flex-start;
     flex-direction: column;
   }

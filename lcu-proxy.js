@@ -275,7 +275,7 @@ function recordTiltEvent(payload) {
     VALUES (${sqlValue(playerKey)}, ${sqlValue(sessionId)}, ${sqlValue(phase)}, ${sqlValue(nowMs)}, ${sqlValue(note)}, ${sqlValue(now)});
   `);
 
-  return buildTiltStats(readMatchesFromDb());
+  return buildTiltPayload(sessionId);
 }
 
 function readTiltCounts(sinceTimestamp = 0) {
@@ -320,6 +320,41 @@ function buildTiltStats(matches) {
         snacksOwed: Math.floor(counts.yeondoo / 20),
       },
     ],
+  };
+}
+
+function readTiltSession(sessionId) {
+  const safeSessionId = String(sessionId || "").slice(0, 80);
+  const emptyCounts = { malang: 0, yeondoo: 0 };
+  const counts = safeSessionId
+    ? sqliteJson(`
+        SELECT player_key, COUNT(*) AS count
+        FROM tilt_events
+        WHERE session_id = ${sqlValue(safeSessionId)}
+        GROUP BY player_key;
+      `).reduce(
+        (acc, row) => {
+          acc[row.player_key] = Number(row.count || 0);
+          return acc;
+        },
+        { ...emptyCounts },
+      )
+    : emptyCounts;
+
+  return {
+    sessionId: safeSessionId,
+    total: counts.malang + counts.yeondoo,
+    players: [
+      { key: "malang", name: "말랑", count: counts.malang },
+      { key: "yeondoo", name: "연두", count: counts.yeondoo },
+    ],
+  };
+}
+
+function buildTiltPayload(sessionId = "") {
+  return {
+    tilt: buildTiltStats(readMatchesFromDb()),
+    session: readTiltSession(sessionId),
   };
 }
 
@@ -883,18 +918,20 @@ const server = http.createServer(async (request, response) => {
   if (request.url.startsWith("/api/tilt")) {
     try {
       initDb();
+      const url = new URL(request.url, `http://localhost:${PORT}`);
       if (request.method === "POST") {
         const payload = await readRequestJson(request);
+        const tiltPayload = recordTiltEvent(payload);
         sendJson(response, 200, {
           ok: true,
-          tilt: recordTiltEvent(payload),
+          ...tiltPayload,
           updatedAt: new Date().toISOString(),
         });
         return;
       }
       sendJson(response, 200, {
         ok: true,
-        tilt: buildTiltStats(readMatchesFromDb()),
+        ...buildTiltPayload(url.searchParams.get("sessionId")),
         updatedAt: new Date().toISOString(),
       });
     } catch (error) {

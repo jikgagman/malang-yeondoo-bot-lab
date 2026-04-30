@@ -1,0 +1,112 @@
+:root {
+  color: #253047;
+  font-family:
+    ui-rounded,
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    system-ui,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-width: 190px;
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.overlay-shell {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  width: 190px;
+  padding: 8px;
+  border: 2px solid #283047;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 178, 194, 0.18) 0 5px, transparent 5px 12px),
+    rgba(255, 251, 241, 0.92);
+  box-shadow: 4px 5px 0 rgba(40, 48, 71, 0.18);
+}
+
+.overlay-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.overlay-top strong {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.overlay-top button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid #283047;
+  border-radius: 999px;
+  background: #ffd35c;
+  color: #253047;
+  font: inherit;
+  font-weight: 900;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.count-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.count-button {
+  min-width: 0;
+  height: 48px;
+  padding: 5px 4px;
+  border: 2px solid #283047;
+  border-radius: 8px;
+  color: #253047;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 2px 3px 0 rgba(40, 48, 71, 0.16);
+}
+
+.count-button span,
+.count-button b {
+  display: block;
+}
+
+.count-button span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.count-button b {
+  margin-top: 1px;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.count-button.malang {
+  background: #cdf8df;
+}
+
+.count-button.yeondoo {
+  background: #ffd7df;
+}
+
+.count-button:active {
+  transform: translate(1px, 2px);
+  box-shadow: 1px 1px 0 rgba(40, 48, 71, 0.16);
+}

@@ -5,7 +5,7 @@ RUN apk add --no-cache sqlite
 WORKDIR /app
 
 COPY package.json ./
-COPY index.html styles.css app.js lcu-proxy.js README.md ./
+COPY index.html overlay.html styles.css overlay.css app.js overlay.js lcu-proxy.js README.md ./
 COPY seed ./seed
 
 ENV NODE_ENV=production

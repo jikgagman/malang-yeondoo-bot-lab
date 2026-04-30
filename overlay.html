@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>짜증 카운트 오버레이</title>
+    <link rel="stylesheet" href="./overlay.css" />
+  </head>
+  <body>
+    <main class="overlay-shell" aria-label="짜증 카운트 오버레이">
+      <div class="overlay-top">
+        <strong>짜증</strong>
+        <button id="newSession" type="button" title="새 게임">↻</button>
+      </div>
+      <div class="count-grid">
+        <button class="count-button malang" type="button" data-player="malang">
+          <span>말랑</span>
+          <b id="malangCount">0</b>
+        </button>
+        <button class="count-button yeondoo" type="button" data-player="yeondoo">
+          <span>연두</span>
+          <b id="yeondooCount">0</b>
+        </button>
+      </div>
+    </main>
+    <script src="./overlay.js"></script>
+  </body>
+</html>

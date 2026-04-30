@@ -459,26 +459,6 @@ function renderTiltStats(tilt) {
     .join("");
 }
 
-async function addTiltCount(player) {
-  try {
-    const response = await fetch(apiUrl("/api/tilt"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        player,
-        phase: state.phase,
-        sessionId: state.sessionId,
-      }),
-    });
-    if (!response.ok) throw new Error("tilt unavailable");
-    const payload = await response.json();
-    renderTiltStats(payload.tilt);
-    loadRiotStats();
-  } catch (error) {
-    console.warn("Tilt count failed:", error.message);
-  }
-}
-
 function renderDuoInsights(insights) {
   const cards = insights.length
     ? insights
@@ -561,9 +541,6 @@ function bindEvents() {
     $("#identityGate").classList.remove("is-hidden");
   });
 
-  document.querySelectorAll("[data-tilt-player]").forEach((button) => {
-    button.addEventListener("click", () => addTiltCount(button.dataset.tiltPlayer));
-  });
 }
 
 bindEvents();
