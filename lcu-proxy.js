@@ -10,6 +10,7 @@ const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const CACHE_FILE = path.join(DATA_DIR, "duo-stats-cache.json");
 const DB_FILE = path.join(DATA_DIR, "duo.sqlite");
+const SEED_FILE = path.join(ROOT, "seed", "duo-matches.json");
 const RIOT_REGION = process.env.RIOT_REGION || "asia";
 const RIOT_PLATFORM = process.env.RIOT_PLATFORM || "kr";
 const DUO_PLAYERS = [
@@ -253,6 +254,20 @@ function seedDbFromJsonCache() {
   return cached.matches;
 }
 
+function readBundledSeed() {
+  if (!fs.existsSync(SEED_FILE)) return [];
+  const seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf8"));
+  return Array.isArray(seed.matches) ? seed.matches : [];
+}
+
+function seedDbFromBundledMatches() {
+  const matches = readBundledSeed();
+  if (!matches.length) return [];
+  upsertMatches(matches);
+  setSyncMeta("last_match_sync", new Date().toISOString());
+  return matches;
+}
+
 function riotRequest(host, endpoint) {
   const apiKey = process.env.RIOT_API_KEY;
   if (!apiKey) {
@@ -278,7 +293,10 @@ function riotRequest(host, endpoint) {
         });
         response.on("end", () => {
           if (response.statusCode >= 400) {
-            reject(new Error(`Riot API ${response.statusCode}: ${body.slice(0, 140)}`));
+            const error = new Error(`Riot API ${response.statusCode}: ${body.slice(0, 140)}`);
+            error.statusCode = response.statusCode;
+            error.retryAfter = Number(response.headers["retry-after"] || 0);
+            reject(error);
             return;
           }
           try {
@@ -295,20 +313,42 @@ function riotRequest(host, endpoint) {
   });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function riotRequestWithRetry(host, endpoint, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await riotRequest(host, endpoint);
+    } catch (error) {
+      if (error.statusCode !== 429 || attempt === retries) throw error;
+      await wait(Math.max(error.retryAfter * 1000, 1500 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 function riotAccountEndpoint(player) {
   return `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(player.gameName)}/${encodeURIComponent(player.tagLine)}`;
 }
 
 async function fetchDuoMatches() {
   const regionalHost = `${RIOT_REGION}.api.riotgames.com`;
-  const accounts = await Promise.all(DUO_PLAYERS.map((player) => riotRequest(regionalHost, riotAccountEndpoint(player))));
+  const accounts = await Promise.all(DUO_PLAYERS.map((player) => riotRequestWithRetry(regionalHost, riotAccountEndpoint(player))));
   upsertPlayers(accounts);
   const [malangAccount, yeondooAccount] = accounts;
-  const matchIds = await riotRequest(
+  const matchIds = await riotRequestWithRetry(
     regionalHost,
-    `/lol/match/v5/matches/by-puuid/${encodeURIComponent(malangAccount.puuid)}/ids?start=0&count=50`,
+    `/lol/match/v5/matches/by-puuid/${encodeURIComponent(malangAccount.puuid)}/ids?start=0&count=20`,
   );
-  const details = await Promise.all(matchIds.slice(0, 40).map((matchId) => riotRequest(regionalHost, `/lol/match/v5/matches/${matchId}`)));
+  const details = [];
+  for (const matchId of matchIds.slice(0, 20)) {
+    details.push(await riotRequestWithRetry(regionalHost, `/lol/match/v5/matches/${matchId}`));
+    await wait(140);
+  }
 
   return details
     .map((match) => summarizeMatch(match, malangAccount.puuid, yeondooAccount.puuid))
@@ -382,7 +422,7 @@ function buildStats(matches, source) {
   const bestPair = [...pairCounts.entries()].sort((a, b) => {
     const aRate = (pairWins.get(a[0]) || 0) / a[1];
     const bRate = (pairWins.get(b[0]) || 0) / b[1];
-    return b[1] - a[1] || bRate - aRate;
+    return bRate - aRate || b[1] - a[1];
   })[0];
   const kda = kdaDeaths ? ((kdaKills + kdaAssists) / kdaDeaths).toFixed(2) : (kdaKills + kdaAssists).toFixed(2);
 
@@ -391,48 +431,61 @@ function buildStats(matches, source) {
     updatedAt: new Date().toISOString(),
     storage: "sqlite",
     matches,
+    bestPair: bestPair ? bestPair[0] : null,
+    insights: buildDuoInsights(matches, bestPair?.[0]),
     cards: [
       ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `${total}게임 중 ${wins}승`],
       ["평균 듀오 KDA", kda, `합산 ${kdaKills}/${kdaDeaths}/${kdaAssists}`],
       ["킬 관여율", total ? `${Math.round(killParticipation / total)}%` : "-", "두 명 합산 평균"],
       ["첫 용 연결률", total ? `${Math.round((firstDragons / total) * 100)}%` : "-", "팀 첫 용 획득 기준"],
       ["베스트 조합", bestPair ? bestPair[0] : "-", bestPair ? `${bestPair[1]}게임 표본` : "데이터 수집 전"],
-      ["최근 매치 수", String(total), "DB에 저장된 바텀 듀오 게임"],
-      ["데이터 출처", source === "riot" ? "Riot API" : source === "sqlite" ? "SQLite DB" : "샘플", "서버 DB 기반 표시"],
+    ["최근 매치 수", String(total), "DB에 저장된 바텀 듀오 게임"],
+      ["데이터 출처", source === "riot" ? "Riot API" : source === "sqlite" ? "서버 DB" : "동기화 대기", "Riot API로 수집 후 DB 저장"],
       ["갱신 시각", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }), "로컬 서버 기준"],
     ],
   };
 }
 
+function buildDuoInsights(matches, bestPairName) {
+  const total = matches.length;
+  if (!total) {
+    return [
+      ["동기화 상태", "대기", "Riot API에서 바텀 듀오 게임을 가져오는 중"],
+      ["저장된 게임", "0", "아직 DB에 저장된 실제 듀오 게임이 없음"],
+      ["추천 카드", "-", "첫 동기화 후 최고 조합 기준으로 자동 변경"],
+      ["픽창 상태", "대기", "픽창 감지 시 추천 패널 자동 표시"],
+    ];
+  }
+
+  const wins = matches.filter((match) => match.win).length;
+  const bestPairMatches = bestPairName ? matches.filter((match) => match.pair === bestPairName) : [];
+  const bestPairWins = bestPairMatches.filter((match) => match.win).length;
+  const recentFive = matches.slice(0, 5);
+  const recentFiveWins = recentFive.filter((match) => match.win).length;
+  const avgDuration = Math.round(matches.reduce((sum, match) => sum + match.gameDuration, 0) / total / 60);
+  const avgKillParticipation = Math.round(matches.reduce((sum, match) => sum + match.duoKillParticipation, 0) / total);
+  const firstDragonRate = Math.round((matches.filter((match) => match.firstDragon).length / total) * 100);
+
+  return [
+    ["최근 5게임 흐름", `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패`, "가장 최근 바텀 듀오 게임 기준"],
+    ["최고 조합 승률", bestPairMatches.length ? `${Math.round((bestPairWins / bestPairMatches.length) * 100)}%` : "-", bestPairName || "데이터 수집 전"],
+    ["평균 게임 시간", `${avgDuration}분`, "저장된 바텀 듀오 게임 평균"],
+    ["평균 킬 관여", `${avgKillParticipation}%`, "두 명의 killParticipation 평균"],
+    ["첫 용 확보", `${firstDragonRate}%`, "우리 팀 첫 용 획득 비율"],
+    ["DB 저장 게임", String(total), "Riot API에서 확인된 실제 바텀 듀오 게임"],
+  ];
+}
+
 function fallbackStats(reason) {
   return {
-    ...buildStats(
-      [
-        {
-          win: true,
-          pair: "징크스+룰루",
-          duoKda: { kills: 11, deaths: 3, assists: 24 },
-          duoKillParticipation: 71,
-          firstDragon: true,
-        },
-        {
-          win: true,
-          pair: "애쉬+세라핀",
-          duoKda: { kills: 8, deaths: 4, assists: 31 },
-          duoKillParticipation: 68,
-          firstDragon: true,
-        },
-        {
-          win: false,
-          pair: "카이사+노틸러스",
-          duoKda: { kills: 7, deaths: 8, assists: 15 },
-          duoKillParticipation: 57,
-          firstDragon: false,
-        },
-      ],
-      "sample",
-    ),
+    ...buildStats([], "pending"),
     error: reason,
+    cards: [
+      ["동기화 상태", "대기", "Riot API 제한이 풀리면 자동 갱신"],
+      ["저장된 게임", "0", "아직 서버 DB에 실제 듀오 게임이 없음"],
+      ["데이터 출처", "동기화 대기", "샘플 데이터는 표시하지 않음"],
+      ["최근 오류", reason.includes("429") ? "API 제한" : "확인 필요", "잠시 후 다시 갱신"],
+    ],
   };
 }
 
@@ -454,6 +507,10 @@ async function statsPayload(forceRefresh = false) {
     seedDbFromJsonCache();
     dbMatches = readMatchesFromDb();
   }
+  if (!dbMatches.length) {
+    seedDbFromBundledMatches();
+    dbMatches = readMatchesFromDb();
+  }
   const cacheAge = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
 
   if (!forceRefresh && dbMatches.length && cacheAge < 1000 * 60 * 30) {
@@ -472,7 +529,7 @@ async function statsPayload(forceRefresh = false) {
     const storedMatches = readMatchesFromDb();
     if (storedMatches.length) return { ...buildStats(storedMatches, "sqlite"), error: error.message };
     const cached = readCachedStats();
-    return cached ? { ...cached, error: error.message } : fallbackStats(error.message);
+    return fallbackStats(error.message);
   }
 }
 
@@ -631,6 +688,9 @@ function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
   });
   response.end(JSON.stringify(payload));
 }
@@ -662,6 +722,16 @@ function serveStatic(request, response) {
 }
 
 const server = http.createServer(async (request, response) => {
+  if (request.method === "OPTIONS") {
+    response.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    response.end();
+    return;
+  }
+
   if (request.url.startsWith("/api/health")) {
     sendJson(response, 200, {
       ok: true,

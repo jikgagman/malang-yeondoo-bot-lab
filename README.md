@@ -1,6 +1,6 @@
 # 말랑연두 바텀 연구소
 
-둘만 쓰는 롤 바텀 듀오 전적/픽 추천 웹앱 프로토타입입니다.
+둘만 쓰는 롤 바텀 듀오 전적/픽 추천 웹앱입니다.
 
 ## 실행
 
@@ -48,22 +48,28 @@ Development 키는 24시간마다 만료됩니다. `401 Unknown apikey`가 뜨�
 
 API 키는 브라우저 코드에 넣으면 노출되므로, 실제 배포에서는 Vercel Serverless Function, Netlify Function, 작은 Node 서버 같은 백엔드에서만 사용해야 합니다.
 
-## 데이터 저장 방식
+## 통계 데이터와 DB를 같이 쓰는 이유
+
+전적 원본은 Riot API가 맞습니다. 다만 화면을 열 때마다 모든 매치를 다시 긁으면 느리고, Development API 키는 호출 제한에 자주 걸립니다. 그래서 서버 DB를 캐시 겸 분석 저장소로 둡니다.
 
 현재 구현:
 
-- 사용자 선택값만 `localStorage`에 저장
-- 전적 통계는 Riot API에서 가져온 뒤 SQLite DB에 저장
-- 픽창 추천은 `lcu-proxy.js`가 LoL 클라이언트 상태를 읽어 즉시 계산
+- Riot Match-V5에서 `말랑말랑바우게#KR1`의 최근 20개 매치 ID를 조회
+- 각 매치 상세에서 `연두색연두#KR1`가 같은 팀인지 확인
+- 말랑은 `BOTTOM`, 연두는 `UTILITY`인 실제 바텀 듀오 게임만 저장
+- 저장된 매치로 승률, KDA, 킬 관여율, 첫 용 연결률, 베스트 조합, 최근 게임을 계산
 - SQLite DB 경로: `data/duo.sqlite`
-- JSON 캐시는 기존 데이터 마이그레이션/비상 fallback 용도로만 사용
+- 배포 서버 DB가 비어 있으면 `seed/duo-matches.json`의 실제 Riot API 수집분으로 먼저 채운 뒤 최신 동기화를 시도
+- 사용자 선택값만 브라우저 `localStorage`에 저장
 
-실서비스 권장 구조:
+현재 수집 범위는 “최근 20개 매치 ID 중 둘이 같은 팀 바텀 듀오로 뛴 게임”입니다. Riot API 호출 제한이 넉넉해지면 `count` 값을 늘리거나 날짜별 증분 동기화를 붙여 몇 개월치까지 확장할 수 있습니다.
 
-- Riot API에서 매치 목록/상세 전적을 주기적으로 가져오기
-- 우리 둘이 같이 바텀으로 간 게임만 필터링
-- SQLite, Supabase, Firebase 같은 DB에 matchId, champion pair, lane stats, item/rune snapshot 저장
-- 다음 접속 때 DB 캐시를 먼저 보여주고, 새 게임만 Riot API로 증분 동기화
+DB를 따로 쓰는 이유:
+
+- Riot API 호출 제한에 걸려도 마지막으로 저장된 실제 통계를 바로 보여주기 위해
+- matchId 중복 저장을 막고 새 게임만 증분 동기화하기 위해
+- 픽창 추천에 “우리 듀오가 실제로 잘한 조합”을 빠르게 반영하기 위해
+- 나중에 로컬 픽창 이벤트, 추천 결과, 선택한 챔피언, 빌드 확인 같은 Riot API에 없는 데이터를 저장하기 위해
 
 op.gg 같은 사이트를 계속 긁는 방식은 권장하지 않습니다. 안정성과 이용약관 측면에서 공식 Riot API + 자체 캐시가 맞습니다.
 
@@ -84,12 +90,12 @@ LCU_LOCKFILE="/path/to/League of Legends/lockfile" npm start
 
 ## 배포
 
-통계 화면만 보여주는 정적 배포는 GitHub Pages, Vercel, Netlify에 올릴 수 있습니다. 다만 픽창 실시간 감지는 사용자의 PC 안 LoL 클라이언트를 읽어야 하므로, 배포된 웹사이트만으로는 동작하지 않습니다.
+Render 배포 서버는 전적 통계와 DB 캐시를 제공합니다. 다만 픽창 실시간 감지는 사용자의 PC 안 LoL 클라이언트를 읽어야 하므로, 배포된 웹사이트만으로는 로컬 LoL 클라이언트에 직접 접근할 수 없습니다.
 
 실시간 추천까지 편하게 쓰려면:
 
-- 웹 UI는 Vercel/Netlify에 배포
+- 웹 UI와 전적 API는 Render에 배포
 - 각자 PC에서 작은 로컬 프록시 앱 실행
-- 배포 웹앱이 `localhost` 프록시를 읽도록 허용
+- 배포 웹앱이 로컬 프록시를 읽도록 허용
 
 이 구조가 제일 현실적입니다.

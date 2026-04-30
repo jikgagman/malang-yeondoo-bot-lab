@@ -40,7 +40,6 @@
         <div class="nav-tabs">
           <a href="#stats">통계</a>
           <a href="#live">실시간</a>
-          <a href="#data">연동</a>
         </div>
         <button id="switchUser" class="ghost-button" type="button" aria-label="사용자 변경">↺</button>
       </nav>
@@ -55,8 +54,8 @@
           </div>
         </div>
 
-        <div class="champion-art" aria-label="색연필 느낌으로 카툰화한 징크스와 세라핀">
-          <article class="toon-card jinx-card">
+        <div id="championArt" class="champion-art" aria-label="현재 최고 듀오 조합 카드">
+          <article id="carryCard" class="toon-card jinx-card">
             <div class="toon-face">
               <span class="hair-tail left"></span>
               <span class="hair-tail right"></span>
@@ -78,10 +77,10 @@
               <span class="spark spark-one"></span>
               <span class="spark spark-two"></span>
             </div>
-            <strong>JINX - DUO CARRY</strong>
+            <strong id="carryCardLabel">JINX - DUO CARRY</strong>
           </article>
 
-          <article class="toon-card sera-card">
+          <article id="supportCard" class="toon-card sera-card">
             <div class="music-cloud">
               <span>♪</span>
               <span>✦</span>
@@ -104,7 +103,7 @@
               <span class="mic"></span>
               <span class="dress-star"></span>
             </div>
-            <strong>SERAPHINE - STAR SONG</strong>
+            <strong id="supportCardLabel">SERAPHINE - STAR SONG</strong>
           </article>
         </div>
       </section>
@@ -115,7 +114,7 @@
         <div class="section-title">
           <span>01</span>
           <h2>우리 바텀 듀오 통계</h2>
-          <p>op.gg식 기본 전적에 둘만의 라인전 지표를 더했어요. 지금은 샘플 데이터이며 Riot API 연결 후 캐시와 함께 자동 갱신됩니다.</p>
+          <p>Riot API 전적과 서버 DB에 쌓인 듀오 기록을 합쳐서 보여줘요.</p>
         </div>
         <div class="stats-grid" id="statsGrid"></div>
         <div class="match-history">
@@ -132,13 +131,13 @@
         <div class="section-title">
           <span>02</span>
           <h2>픽창 실시간 감지</h2>
-          <p>LoL 클라이언트가 켜져 있고 로컬 프록시가 실행 중이면 픽창 진입 시 자동으로 추천과 빌드가 열립니다.</p>
+          <p>LoL 클라이언트 픽창이 감지되면 추천 픽과 빌드 패널이 자동으로 열립니다.</p>
         </div>
 
         <div class="live-status-card">
           <div>
             <strong id="liveStatusTitle">LoL 클라이언트 대기 중</strong>
-            <small id="liveStatusDetail">`npm start`로 로컬 프록시를 실행하면 Champion Select 상태를 읽을 수 있어요.</small>
+            <small id="liveStatusDetail">아직 픽창 신호가 없어요. 실제 게임에서 픽창에 들어가면 자동 분석 화면으로 전환됩니다.</small>
           </div>
           <span id="liveBadge" class="status-badge idle">대기</span>
         </div>
@@ -183,33 +182,7 @@
         </div>
       </section>
 
-      <section id="data" class="section-shell ink-band">
-        <div class="section-title">
-          <span>03</span>
-          <h2>Riot API와 데이터 저장 방식</h2>
-          <p>전적 조회와 픽창 감지는 서로 다른 통로를 씁니다. API 키는 제가 임의로 발급하거나 넣을 수 없고, 사용자 Riot Developer Portal 키가 필요해요.</p>
-        </div>
-        <div class="data-grid">
-          <article>
-            <h3>전적 통계</h3>
-            <p>Riot API로 매치 목록과 상세 데이터를 가져온 뒤, 우리 사이트의 작은 캐시에 저장해 재계산합니다. 매번 op.gg를 긁는 방식이 아니라 공식 API를 쓰는 구성이 맞습니다.</p>
-          </article>
-          <article>
-            <h3>실시간 픽창</h3>
-            <p>Riot 웹 API가 아니라 PC 안의 LoL Client LCU API를 읽습니다. 브라우저가 직접 접근하기 어려워서 `lcu-proxy.js`가 중간에서 안전하게 프록시합니다.</p>
-          </article>
-          <article>
-            <h3>저장소</h3>
-            <p>지금 프로토타입은 브라우저 설정만 `localStorage`에 저장합니다. 실제 전적 캐시는 나중에 SQLite, Supabase, Firebase 중 하나로 붙이면 됩니다.</p>
-          </article>
-        </div>
-      </section>
     </main>
-
-    <footer class="footer">
-      <strong>실행 메모</strong>
-      <span>실시간 감지는 `npm start`로 열어야 작동합니다. 그냥 파일로 열면 디자인과 샘플 통계만 볼 수 있어요.</span>
-    </footer>
 
     <script src="./app.js"></script>
   </body>

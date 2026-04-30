@@ -13,6 +13,13 @@ const users = {
   },
 };
 
+if (window.location.protocol === "file:") {
+  window.location.replace(`http://localhost:4173/${window.location.search}${window.location.hash}`);
+}
+
+const API_BASE = window.location.protocol === "file:" ? "http://localhost:4173" : "";
+const apiUrl = (path) => `${API_BASE}${path}`;
+
 const championIdMap = {
   1: "애니",
   12: "알리스타",
@@ -161,25 +168,22 @@ const champions = [
   },
 ];
 
-const ideaStats = [
-  ["서로 살린 횟수", "힐, 보호막, CC 차단, 어그로 핑퐁으로 생존한 장면을 카운트해요."],
-  ["우리만의 킬각 타이머", "2레벨, 3레벨, 첫 귀환 후처럼 실제로 킬이 많이 난 시간을 표시해요."],
-  ["챔피언 페어 매트릭스", "원딜×서폿 조합별 승률, KDA, 라인전 골드 차이를 한눈에 보여줘요."],
-  ["상대 바텀 대응 노트", "상대 조합별로 우리가 이긴 픽과 진 픽을 기록해서 다음 픽창에 반영해요."],
-  ["귀환 싱크 점수", "한 명만 애매하게 남아 손해 본 판을 줄이기 위한 듀오 템포 지표예요."],
-  ["오브젝트 전환률", "바텀 킬 또는 포탑 채굴 후 용/전령/시야 장악으로 이어진 비율이에요."],
+const fallbackDuoStats = [
+  ["동기화 상태", "대기", "Riot API와 서버 DB를 확인 중"],
+  ["저장된 게임", "-", "실제 듀오 게임만 표시"],
+  ["데이터 출처", "확인 중", "샘플 데이터는 표시하지 않음"],
+  ["최근 오류", "-", "동기화 후 사라짐"],
 ];
 
-const fallbackDuoStats = [
-  ["최근 20게임 승률", "65%", "둘이 바텀으로 간 게임만 집계"],
-  ["라인전 +15분 골드", "+642", "14분 이전 바텀 골드 차이"],
-  ["2v2 킬 관여율", "71%", "정글 개입 없이 만든 킬"],
-  ["첫 용 연결률", "58%", "바텀 주도권이 첫 용으로 이어진 비율"],
-  ["동시 귀환 성공률", "74%", "템포 손해 없이 같이 귀환한 비율"],
-  ["시야 체인 점수", "8.6", "서폿 와드와 원딜 라인 푸시가 맞물린 정도"],
-  ["베스트 조합", "징크스+룰루", "샘플 기준 승률 78%"],
-  ["다음 연습 후보", "애쉬+세라핀", "주도권과 궁 연계가 좋아 추천"],
-];
+const championVisuals = {
+  직스: { label: "ZIGGS - BOMB LANE", className: "ziggs-card" },
+  세라핀: { label: "SERAPHINE - STAR SONG", className: "sera-card" },
+  애쉬: { label: "ASHE - FROST ARROW", className: "ashe-card" },
+  징크스: { label: "JINX - DUO CARRY", className: "jinx-card" },
+  레오나: { label: "LEONA - SUN GUARD", className: "leona-card" },
+  룰루: { label: "LULU - PIX GUARD", className: "lulu-card" },
+  "미스 포츈": { label: "MISS FORTUNE - DOUBLE UP", className: "mf-card" },
+};
 
 const state = {
   user: null,
@@ -227,9 +231,9 @@ function updateLiveSession(payload) {
 
   if (!inChampionSelect) {
     setLiveStatus(
-      payload?.ok ? "idle" : "error",
-      payload?.ok ? "LoL 클라이언트 대기 중" : "로컬 프록시 연결 필요",
-      payload?.ok ? `현재 상태: ${state.phase}` : "터미널에서 npm start를 실행한 뒤 이 페이지를 http://localhost:4173 으로 열어주세요.",
+      "idle",
+      payload?.ok ? "LoL 클라이언트 대기 중" : "픽창 신호 대기 중",
+      payload?.ok ? `현재 상태: ${state.phase}` : "아직 픽창 신호가 없어요. 실제 게임에서 픽창에 들어가면 자동 분석 화면으로 전환됩니다.",
     );
     $("#livePanel").classList.add("is-sleeping");
     $("#phaseLabel").textContent = state.phase;
@@ -367,21 +371,12 @@ function renderAutoBuild() {
 function renderStats() {
   renderStatCards(fallbackDuoStats);
   renderRecentMatches([]);
-  $("#ideaList").innerHTML = ideaStats
-    .map(
-      ([title, body]) => `
-        <article class="idea">
-          <b>${title}</b>
-          <span>${body}</span>
-        </article>
-      `,
-    )
-    .join("");
+  renderDuoInsights([]);
 }
 
 async function detectCurrentUser() {
   try {
-    const response = await fetch("/api/current-user", { cache: "no-store" });
+    const response = await fetch(apiUrl("/api/current-user"), { cache: "no-store" });
     if (!response.ok) return;
     const payload = await response.json();
     if (users[payload.user]) setUser(payload.user);
@@ -406,7 +401,7 @@ function renderStatCards(cards) {
 
 async function loadRiotStats() {
   try {
-    const response = await fetch("/api/stats", { cache: "no-store" });
+    const response = await fetch(apiUrl("/api/stats"), { cache: "no-store" });
     if (!response.ok) throw new Error("stats unavailable");
     const payload = await response.json();
     if (Array.isArray(payload.cards)) {
@@ -415,9 +410,46 @@ async function loadRiotStats() {
     if (Array.isArray(payload.matches)) {
       renderRecentMatches(payload.matches);
     }
+    if (Array.isArray(payload.insights)) {
+      renderDuoInsights(payload.insights);
+    }
+    if (payload.bestPair) {
+      updateHeroDuo(payload.bestPair);
+    }
   } catch (error) {
     console.warn("Using fallback duo stats:", error.message);
   }
+}
+
+function renderDuoInsights(insights) {
+  const cards = insights.length
+    ? insights
+    : [
+        ["동기화 상태", "대기", "Riot API와 서버 DB를 확인 중"],
+        ["저장된 게임", "-", "실제 듀오 게임만 표시"],
+      ];
+  $("#ideaList").innerHTML = cards
+    .map(
+      ([title, value, hint]) => `
+        <article class="idea">
+          <small>${title}</small>
+          <strong>${value}</strong>
+          <span>${hint}</span>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function updateHeroDuo(pair) {
+  const [carry, support] = pair.split("+");
+  const carryVisual = championVisuals[carry] || { label: `${carry.toUpperCase()} - DUO CARRY`, className: "jinx-card" };
+  const supportVisual = championVisuals[support] || { label: `${support.toUpperCase()} - DUO SUPPORT`, className: "sera-card" };
+  $("#carryCard").className = `toon-card ${carryVisual.className}`;
+  $("#supportCard").className = `toon-card ${supportVisual.className}`;
+  $("#carryCardLabel").textContent = carryVisual.label;
+  $("#supportCardLabel").textContent = supportVisual.label;
+  $("#championArt").setAttribute("aria-label", `현재 최고 듀오 조합 ${pair}`);
 }
 
 function renderRecentMatches(matches) {
@@ -448,14 +480,14 @@ async function pollLiveClient() {
     const params = new URLSearchParams(window.location.search);
     const mock = params.get("mock");
     const endpoint = mock ? `/api/live?mock=${encodeURIComponent(mock)}` : "/api/live";
-    const response = await fetch(endpoint, { cache: "no-store" });
+    const response = await fetch(apiUrl(endpoint), { cache: "no-store" });
     if (!response.ok) throw new Error("proxy unavailable");
     const payload = await response.json();
     updateLiveSession(payload);
   } catch (error) {
     updateLiveSession({
       ok: false,
-      phase: "Disconnected",
+      phase: "Waiting",
       error: error.message,
     });
   }

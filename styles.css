@@ -345,6 +345,98 @@ a {
   transform: rotate(1.2deg);
 }
 
+.ziggs-card {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 149, 71, 0.3), transparent 8rem),
+    repeating-linear-gradient(112deg, rgba(111, 82, 42, 0.12) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, #f7e7b4, #f5df9f);
+}
+
+.ziggs-card .hair-tail {
+  height: 84px;
+  width: 52px;
+  background:
+    repeating-linear-gradient(20deg, rgba(120, 72, 24, 0.28) 0 3px, transparent 3px 8px),
+    #f7b95f;
+}
+
+.ziggs-card .hair-tail.left {
+  left: 42px;
+  transform: rotate(52deg);
+}
+
+.ziggs-card .hair-tail.right {
+  right: 42px;
+  transform: rotate(-52deg);
+}
+
+.ziggs-card .bang {
+  background:
+    repeating-linear-gradient(24deg, rgba(120, 72, 24, 0.28) 0 3px, transparent 3px 8px),
+    #ffcb70;
+}
+
+.ziggs-card .toon-body {
+  background:
+    repeating-linear-gradient(167deg, rgba(164, 86, 35, 0.3) 0 4px, transparent 4px 9px),
+    #ff9d63;
+}
+
+.ziggs-card .rocket {
+  border-radius: 50%;
+  width: 88px;
+  height: 88px;
+  left: 28px;
+  top: 14px;
+  background:
+    radial-gradient(circle at 35% 35%, #fff0a3 0 10px, transparent 11px),
+    repeating-linear-gradient(164deg, rgba(170, 73, 60, 0.26) 0 4px, transparent 4px 9px),
+    #f06b57;
+}
+
+.ziggs-card .rocket::after {
+  right: -22px;
+  top: 28px;
+  border-left-color: #263142;
+}
+
+.ziggs-card .rocket-band {
+  left: 94px;
+  top: 24px;
+  transform: rotate(12deg);
+}
+
+.ashe-card .hair-tail,
+.ashe-card .bang {
+  background:
+    repeating-linear-gradient(20deg, rgba(38, 94, 145, 0.3) 0 3px, transparent 3px 8px),
+    #9ddcff;
+}
+
+.ashe-card .toon-body {
+  background:
+    repeating-linear-gradient(167deg, rgba(40, 93, 155, 0.25) 0 4px, transparent 4px 9px),
+    #86bbff;
+}
+
+.leona-card .sera-hair {
+  background:
+    repeating-radial-gradient(circle at 45% 35%, rgba(186, 116, 39, 0.38) 0 3px, transparent 3px 9px),
+    linear-gradient(135deg, #ffe27a, #ff9d63);
+}
+
+.leona-card .sera-body {
+  background:
+    repeating-linear-gradient(167deg, rgba(189, 129, 21, 0.28) 0 4px, transparent 4px 9px),
+    #ffd76a;
+}
+
+.lulu-card .sera-hair {
+  background:
+    repeating-radial-gradient(circle at 45% 35%, rgba(120, 55, 177, 0.42) 0 3px, transparent 3px 9px),
+    linear-gradient(135deg, #d69cff, #8fd8ff);
+}
+
 .sera-card::before {
   border-color: rgba(140, 86, 205, 0.72);
 }
@@ -1172,6 +1264,18 @@ select {
 .idea b {
   display: block;
   margin-bottom: 5px;
+}
+
+.idea small {
+  display: block;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.idea strong {
+  display: block;
+  margin: 6px 0;
+  font-size: 1.45rem;
 }
 
 .data-grid {
