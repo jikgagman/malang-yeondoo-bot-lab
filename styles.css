@@ -285,6 +285,213 @@ a {
   font-size: 0.92rem;
 }
 
+.rank-showcase {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.rank-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rank-card,
+.rank-trend-card {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid rgba(40, 49, 66, 0.94);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.68), transparent 5.8rem),
+    repeating-linear-gradient(112deg, rgba(111, 82, 42, 0.11) 0 1px, transparent 1px 7px),
+    linear-gradient(160deg, #fff8dd, #dff6ef);
+  box-shadow: 7px 8px 0 rgba(40, 49, 66, 0.13);
+}
+
+.rank-card {
+  min-height: 240px;
+  padding: 20px 16px 16px;
+  text-align: center;
+}
+
+.rank-card:nth-child(2) {
+  transform: rotate(1deg);
+  background:
+    radial-gradient(circle at 22% 12%, rgba(255, 255, 255, 0.68), transparent 5.8rem),
+    repeating-linear-gradient(112deg, rgba(111, 82, 42, 0.11) 0 1px, transparent 1px 7px),
+    linear-gradient(160deg, #fff4df, #ffe6ef);
+}
+
+.rank-card small,
+.rank-trend-card small {
+  display: block;
+  color: #667289;
+  font-weight: 900;
+}
+
+.rank-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(1.65rem, 3vw, 2.25rem);
+  line-height: 1.05;
+}
+
+.rank-card > span {
+  display: block;
+  margin-top: 7px;
+  color: #5c687f;
+  font-weight: 800;
+}
+
+.tier-emblem {
+  --tier-a: #9da3a5;
+  --tier-b: #4e5459;
+  --tier-c: #d9dedf;
+  position: relative;
+  width: min(150px, 78%);
+  aspect-ratio: 1.55;
+  margin: 4px auto 14px;
+  filter: drop-shadow(0 6px 0 rgba(40, 49, 66, 0.16));
+}
+
+.tier-emblem::before {
+  content: "";
+  position: absolute;
+  inset: 4% 6% 12%;
+  border: 3px solid rgba(40, 49, 66, 0.78);
+  border-radius: 42% 42% 52% 52%;
+  background:
+    repeating-linear-gradient(150deg, rgba(255, 255, 255, 0.28) 0 3px, transparent 3px 9px),
+    linear-gradient(135deg, var(--tier-a), var(--tier-b));
+  clip-path: polygon(50% 3%, 64% 28%, 95% 20%, 76% 55%, 91% 88%, 58% 73%, 50% 98%, 42% 73%, 9% 88%, 24% 55%, 5% 20%, 36% 28%);
+}
+
+.tier-wing,
+.tier-core,
+.tier-gem {
+  position: absolute;
+  border: 3px solid rgba(40, 49, 66, 0.74);
+  background:
+    repeating-linear-gradient(145deg, rgba(255, 255, 255, 0.24) 0 3px, transparent 3px 8px),
+    linear-gradient(140deg, var(--tier-c), var(--tier-a) 48%, var(--tier-b));
+}
+
+.tier-wing {
+  top: 30%;
+  width: 42%;
+  height: 34%;
+  clip-path: polygon(0 18%, 100% 0, 72% 100%, 12% 74%);
+}
+
+.tier-wing.left {
+  left: 0;
+  transform: rotate(15deg);
+}
+
+.tier-wing.right {
+  right: 0;
+  transform: scaleX(-1) rotate(15deg);
+}
+
+.tier-core {
+  left: 35%;
+  top: 18%;
+  width: 30%;
+  height: 48%;
+  clip-path: polygon(50% 0, 100% 36%, 76% 100%, 24% 100%, 0 36%);
+}
+
+.tier-gem {
+  left: 44%;
+  bottom: 9%;
+  width: 12%;
+  aspect-ratio: 1;
+  transform: rotate(45deg);
+  background: var(--tier-c);
+}
+
+.tier-emblem.iron {
+  --tier-a: #777172;
+  --tier-b: #27282c;
+  --tier-c: #b7b0a8;
+}
+
+.tier-emblem.bronze {
+  --tier-a: #b77a65;
+  --tier-b: #4d2727;
+  --tier-c: #e3a28b;
+}
+
+.tier-emblem.silver {
+  --tier-a: #b9d2ea;
+  --tier-b: #34475e;
+  --tier-c: #edf7ff;
+}
+
+.tier-emblem.gold {
+  --tier-a: #e9bf55;
+  --tier-b: #755126;
+  --tier-c: #fff0a2;
+}
+
+.tier-emblem.platinum {
+  --tier-a: #35d3e4;
+  --tier-b: #0d536b;
+  --tier-c: #b7fff9;
+}
+
+.tier-emblem.emerald {
+  --tier-a: #42dc86;
+  --tier-b: #145d3d;
+  --tier-c: #b9ffd3;
+}
+
+.tier-emblem.diamond {
+  --tier-a: #7689ff;
+  --tier-b: #272e83;
+  --tier-c: #c2ecff;
+}
+
+.tier-emblem.master,
+.tier-emblem.grandmaster,
+.tier-emblem.challenger {
+  --tier-a: #bd5bff;
+  --tier-b: #452067;
+  --tier-c: #ffd0ff;
+}
+
+.tier-emblem.grandmaster {
+  --tier-a: #f05c45;
+  --tier-b: #651c28;
+  --tier-c: #ffd08b;
+}
+
+.tier-emblem.challenger {
+  --tier-a: #65e6ff;
+  --tier-b: #7a5c1b;
+  --tier-c: #fff2a6;
+}
+
+.rank-trend-card {
+  padding: 16px;
+}
+
+.rank-trend-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.35rem;
+}
+
+.rank-trend-card svg {
+  display: block;
+  width: 100%;
+  height: 190px;
+  margin-top: 12px;
+  overflow: visible;
+}
+
 .champion-art {
   min-width: 0;
   display: grid;
@@ -1421,6 +1628,7 @@ select {
     min-height: auto;
   }
 
+  .rank-cards,
   .champion-art,
   .recommendation-grid,
   .stats-grid,
@@ -1451,6 +1659,7 @@ select {
   }
 
   .identity-actions,
+  .rank-cards,
   .champion-art,
   .recommendation-grid,
   .stats-grid,

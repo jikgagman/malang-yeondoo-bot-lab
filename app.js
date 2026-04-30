@@ -185,6 +185,20 @@ const championVisuals = {
   "미스 포츈": { label: "MISS FORTUNE - DOUBLE UP", className: "mf-card" },
 };
 
+const tierNames = {
+  IRON: "아이언",
+  BRONZE: "브론즈",
+  SILVER: "실버",
+  GOLD: "골드",
+  PLATINUM: "플래티넘",
+  EMERALD: "에메랄드",
+  DIAMOND: "다이아몬드",
+  MASTER: "마스터",
+  GRANDMASTER: "그랜드마스터",
+  CHALLENGER: "챌린저",
+  UNRANKED: "언랭크",
+};
+
 const state = {
   user: null,
   allyPicks: new Set(),
@@ -418,9 +432,7 @@ async function loadRiotStats() {
     if (Array.isArray(payload.insights)) {
       renderDuoInsights(payload.insights);
     }
-    if (payload.bestPair) {
-      updateHeroDuo(payload.bestPair);
-    }
+    renderRankHero(payload.ranks);
     renderTiltStats(payload.tilt);
   } catch (error) {
     console.warn("Using fallback duo stats:", error.message);
@@ -488,6 +500,76 @@ function updateHeroDuo(pair) {
   $("#carryCardLabel").textContent = carryVisual.label;
   $("#supportCardLabel").textContent = supportVisual.label;
   $("#championArt").setAttribute("aria-label", `현재 최고 듀오 조합 ${pair}`);
+}
+
+function rankLabel(rank) {
+  if (!rank || !rank.tier || rank.tier === "UNRANKED") return "언랭크";
+  const tier = tierNames[rank.tier] || rank.tier;
+  const division = rank.rank && !["MASTER", "GRANDMASTER", "CHALLENGER"].includes(rank.tier) ? ` ${rank.rank}` : "";
+  return `${tier}${division}`;
+}
+
+function renderRankCard(player) {
+  const tierClass = String(player?.tier || "UNRANKED").toLowerCase();
+  const wins = Number(player?.wins || 0);
+  const losses = Number(player?.losses || 0);
+  const total = wins + losses;
+  const rate = total ? `${Math.round((wins / total) * 100)}%` : "-";
+  return `
+    <div class="tier-emblem ${tierClass}">
+      <span class="tier-wing left"></span>
+      <span class="tier-wing right"></span>
+      <span class="tier-core"></span>
+      <span class="tier-gem"></span>
+    </div>
+    <small>${player?.name || "-"}</small>
+    <strong>${rankLabel(player)}</strong>
+    <span>${Number(player?.leaguePoints || 0)}LP · 승률 ${rate}</span>
+  `;
+}
+
+function renderRankGraph(ranks) {
+  const players = ranks?.players || [];
+  const series = players.map((player) => ({
+    key: player.key,
+    name: player.name,
+    color: player.key === "malang" ? "#3abf79" : "#e97b95",
+    values: (player.trend || []).map((point) => Number(point.score || 0)),
+  }));
+  const allValues = series.flatMap((item) => item.values);
+  const max = Math.max(...allValues, 1000);
+  const min = Math.min(...allValues, max - 400);
+  const range = Math.max(max - min, 200);
+  const width = 420;
+  const height = 180;
+  const pad = 26;
+  const xFor = (index, count) => (count <= 1 ? width / 2 : pad + (index * (width - pad * 2)) / (count - 1));
+  const yFor = (value) => height - pad - ((value - min) / range) * (height - pad * 2);
+  const lines = series
+    .map((item) => {
+      const values = item.values.length ? item.values : [min];
+      const points = values.map((value, index) => `${xFor(index, values.length)},${yFor(value)}`).join(" ");
+      const circles = values
+        .map((value, index) => `<circle cx="${xFor(index, values.length)}" cy="${yFor(value)}" r="4" fill="${item.color}"></circle>`)
+        .join("");
+      return `<polyline points="${points}" fill="none" stroke="${item.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>${circles}`;
+    })
+    .join("");
+  $("#rankTrendGraph").innerHTML = `
+    <rect x="0" y="0" width="${width}" height="${height}" rx="14" fill="#fffaf0"></rect>
+    <path d="M30 42 H390 M30 86 H390 M30 130 H390" stroke="#283142" stroke-width="2" stroke-dasharray="5 8" opacity=".14"></path>
+    ${lines}
+  `;
+}
+
+function renderRankHero(ranks) {
+  const players = ranks?.players || [];
+  const malang = players.find((player) => player.key === "malang");
+  const yeondoo = players.find((player) => player.key === "yeondoo");
+  $("#malangRankCard").innerHTML = renderRankCard(malang || { key: "malang", name: "말랑", tier: "UNRANKED" });
+  $("#yeondooRankCard").innerHTML = renderRankCard(yeondoo || { key: "yeondoo", name: "연두", tier: "UNRANKED" });
+  $("#rankTrendTitle").textContent = ranks?.updatedAt ? new Date(ranks.updatedAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "최근 저장 기록";
+  renderRankGraph(ranks);
 }
 
 function renderRecentMatches(matches) {

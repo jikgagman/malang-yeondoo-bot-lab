@@ -54,56 +54,37 @@
           </div>
         </div>
 
-        <div id="championArt" class="champion-art" aria-label="현재 최고 듀오 조합 카드">
-          <article id="carryCard" class="toon-card jinx-card">
-            <div class="toon-face">
-              <span class="hair-tail left"></span>
-              <span class="hair-tail right"></span>
-              <span class="bang bang-one"></span>
-              <span class="bang bang-two"></span>
-              <span class="brow brow-left"></span>
-              <span class="brow brow-right"></span>
-              <span class="eye eye-left"></span>
-              <span class="eye eye-right"></span>
-              <span class="grin"></span>
-              <span class="cheek cheek-left"></span>
-              <span class="cheek cheek-right"></span>
+        <div id="rankShowcase" class="rank-showcase" aria-label="듀오 티어와 티어 추이">
+          <div class="rank-cards">
+            <article id="malangRankCard" class="rank-card">
+              <div class="tier-emblem gold">
+                <span class="tier-wing left"></span>
+                <span class="tier-wing right"></span>
+                <span class="tier-core"></span>
+                <span class="tier-gem"></span>
+              </div>
+              <small>말랑</small>
+              <strong>불러오는 중</strong>
+              <span>Riot 랭크 확인 중</span>
+            </article>
+            <article id="yeondooRankCard" class="rank-card">
+              <div class="tier-emblem emerald">
+                <span class="tier-wing left"></span>
+                <span class="tier-wing right"></span>
+                <span class="tier-core"></span>
+                <span class="tier-gem"></span>
+              </div>
+              <small>연두</small>
+              <strong>불러오는 중</strong>
+              <span>Riot 랭크 확인 중</span>
+            </article>
+          </div>
+          <article class="rank-trend-card">
+            <div>
+              <small>티어 추이</small>
+              <strong id="rankTrendTitle">최근 저장 기록</strong>
             </div>
-            <div class="toon-body">
-              <span class="strap strap-one"></span>
-              <span class="strap strap-two"></span>
-              <span class="rocket"></span>
-              <span class="rocket-band"></span>
-              <span class="spark spark-one"></span>
-              <span class="spark spark-two"></span>
-            </div>
-            <strong id="carryCardLabel">JINX - DUO CARRY</strong>
-          </article>
-
-          <article id="supportCard" class="toon-card sera-card">
-            <div class="music-cloud">
-              <span>♪</span>
-              <span>✦</span>
-              <span>♫</span>
-            </div>
-            <div class="toon-face sera-face">
-              <span class="sera-hair"></span>
-              <span class="sera-curl curl-one"></span>
-              <span class="sera-curl curl-two"></span>
-              <span class="brow brow-left"></span>
-              <span class="brow brow-right"></span>
-              <span class="eye eye-left"></span>
-              <span class="eye eye-right"></span>
-              <span class="soft-smile"></span>
-              <span class="cheek cheek-left"></span>
-              <span class="cheek cheek-right"></span>
-            </div>
-            <div class="toon-body sera-body">
-              <span class="stage"></span>
-              <span class="mic"></span>
-              <span class="dress-star"></span>
-            </div>
-            <strong id="supportCardLabel">SERAPHINE - STAR SONG</strong>
+            <svg id="rankTrendGraph" viewBox="0 0 420 180" role="img" aria-label="말랑과 연두의 티어 추이 그래프"></svg>
           </article>
         </div>
       </section>

@@ -19,6 +19,19 @@ const DUO_PLAYERS = [
   { key: "malang", gameName: "말랑말랑바우게", tagLine: "KR1" },
   { key: "yeondoo", gameName: "연두색연두", tagLine: "KR1" },
 ];
+const TIER_SCORE = {
+  IRON: 0,
+  BRONZE: 400,
+  SILVER: 800,
+  GOLD: 1200,
+  PLATINUM: 1600,
+  EMERALD: 2000,
+  DIAMOND: 2400,
+  MASTER: 2800,
+  GRANDMASTER: 3200,
+  CHALLENGER: 3600,
+};
+const DIVISION_SCORE = { IV: 0, III: 100, II: 200, I: 300 };
 
 loadEnvFile();
 
@@ -166,6 +179,19 @@ function initDb() {
       note TEXT,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS rank_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_key TEXT NOT NULL,
+      queue_type TEXT NOT NULL,
+      tier TEXT NOT NULL,
+      rank_division TEXT,
+      league_points INTEGER NOT NULL,
+      wins INTEGER NOT NULL,
+      losses INTEGER NOT NULL,
+      score INTEGER NOT NULL,
+      captured_at INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -234,6 +260,105 @@ function upsertMatches(matches) {
       raw_json = excluded.raw_json,
       updated_at = excluded.updated_at;
   `);
+}
+
+function rankScore(entry) {
+  if (!entry?.tier) return 0;
+  return (TIER_SCORE[entry.tier] || 0) + (DIVISION_SCORE[entry.rank] || 0) + Number(entry.leaguePoints || 0);
+}
+
+function normalizeRankEntry(player, entries) {
+  const ranked = entries.find((entry) => entry.queueType === "RANKED_SOLO_5x5") || entries.find((entry) => entry.queueType === "RANKED_FLEX_SR");
+  if (!ranked) {
+    return {
+      key: player.key,
+      name: player.key === "malang" ? "말랑" : "연두",
+      queueType: "UNRANKED",
+      tier: "UNRANKED",
+      rank: "",
+      leaguePoints: 0,
+      wins: 0,
+      losses: 0,
+      score: 0,
+    };
+  }
+
+  return {
+    key: player.key,
+    name: player.key === "malang" ? "말랑" : "연두",
+    queueType: ranked.queueType,
+    tier: ranked.tier,
+    rank: ranked.rank || "",
+    leaguePoints: Number(ranked.leaguePoints || 0),
+    wins: Number(ranked.wins || 0),
+    losses: Number(ranked.losses || 0),
+    score: rankScore(ranked),
+  };
+}
+
+function insertRankSnapshots(ranks) {
+  if (!ranks.length) return;
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const values = ranks
+    .map(
+      (rank) =>
+        `(${sqlValue(rank.key)}, ${sqlValue(rank.queueType)}, ${sqlValue(rank.tier)}, ${sqlValue(rank.rank)}, ${sqlValue(rank.leaguePoints)}, ${sqlValue(rank.wins)}, ${sqlValue(rank.losses)}, ${sqlValue(rank.score)}, ${sqlValue(nowMs)}, ${sqlValue(now)})`,
+    )
+    .join(",\n");
+
+  sqliteExec(`
+    INSERT INTO rank_snapshots (player_key, queue_type, tier, rank_division, league_points, wins, losses, score, captured_at, updated_at)
+    VALUES ${values};
+  `);
+}
+
+function readRankSnapshots(limitPerPlayer = 12) {
+  const rows = sqliteJson(`
+    SELECT *
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY player_key ORDER BY captured_at DESC, id DESC) AS row_number
+      FROM rank_snapshots
+    )
+    WHERE row_number <= ${Number(limitPerPlayer)}
+    ORDER BY player_key, captured_at ASC, id ASC;
+  `);
+  return rows;
+}
+
+function buildRankSummary() {
+  const rows = readRankSnapshots();
+  const latestRows = new Map();
+  rows.forEach((row) => latestRows.set(row.player_key, row));
+  const latestAt = Math.max(0, ...rows.map((row) => Number(row.captured_at || 0)));
+
+  return {
+    updatedAt: latestAt ? new Date(latestAt).toISOString() : null,
+    players: DUO_PLAYERS.map((player) => {
+      const latest = latestRows.get(player.key);
+      const trend = rows
+        .filter((row) => row.player_key === player.key)
+        .map((row) => ({
+          tier: row.tier,
+          rank: row.rank_division || "",
+          leaguePoints: Number(row.league_points || 0),
+          score: Number(row.score || 0),
+          capturedAt: Number(row.captured_at || 0),
+        }));
+      return {
+        key: player.key,
+        name: player.key === "malang" ? "말랑" : "연두",
+        queueType: latest?.queue_type || "UNRANKED",
+        tier: latest?.tier || "UNRANKED",
+        rank: latest?.rank_division || "",
+        leaguePoints: Number(latest?.league_points || 0),
+        wins: Number(latest?.wins || 0),
+        losses: Number(latest?.losses || 0),
+        score: Number(latest?.score || 0),
+        trend,
+      };
+    }),
+  };
 }
 
 function setSyncMeta(key, value) {
@@ -451,6 +576,7 @@ async function fetchDuoMatches() {
   const regionalHost = `${RIOT_REGION}.api.riotgames.com`;
   const accounts = await Promise.all(DUO_PLAYERS.map((player) => riotRequestWithRetry(regionalHost, riotAccountEndpoint(player))));
   upsertPlayers(accounts);
+  await syncRanksForAccounts(accounts);
   const [malangAccount, yeondooAccount] = accounts;
   const matchIds = await riotRequestWithRetry(
     regionalHost,
@@ -466,6 +592,20 @@ async function fetchDuoMatches() {
   }
 
   return summaries;
+}
+
+async function syncRanksForAccounts(accounts = null) {
+  const regionalHost = `${RIOT_REGION}.api.riotgames.com`;
+  const platformHost = `${RIOT_PLATFORM}.api.riotgames.com`;
+  const nextAccounts = accounts || (await Promise.all(DUO_PLAYERS.map((player) => riotRequestWithRetry(regionalHost, riotAccountEndpoint(player)))));
+  upsertPlayers(nextAccounts);
+  const rankEntries = await Promise.all(
+    nextAccounts.map((account) => riotRequestWithRetry(platformHost, `/lol/league/v4/entries/by-puuid/${encodeURIComponent(account.puuid)}`)),
+  );
+  const ranks = DUO_PLAYERS.map((player, index) => normalizeRankEntry(player, Array.isArray(rankEntries[index]) ? rankEntries[index] : []));
+  insertRankSnapshots(ranks);
+  setSyncMeta("last_rank_sync", new Date().toISOString());
+  return ranks;
 }
 
 function summarizeMatch(match, malangPuuid, yeondooPuuid) {
@@ -548,6 +688,7 @@ function buildStats(matches, source) {
     updatedAt: new Date().toISOString(),
     storage: "sqlite",
     matches,
+    ranks: buildRankSummary(),
     bestPair: bestPair ? bestPair[0] : null,
     insights: buildDuoInsights(matches, bestPair?.[0]),
     tilt: buildTiltStats(matches),
@@ -621,6 +762,7 @@ function writeCachedStats(stats) {
 async function statsPayload(forceRefresh = false) {
   initDb();
   const lastSync = getSyncMeta("last_match_sync");
+  const lastRankSync = getSyncMeta("last_rank_sync");
   let dbMatches = readMatchesFromDb();
   if (!dbMatches.length) {
     seedDbFromJsonCache();
@@ -631,8 +773,16 @@ async function statsPayload(forceRefresh = false) {
     dbMatches = readMatchesFromDb();
   }
   const cacheAge = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
+  const rankCacheAge = lastRankSync ? Date.now() - new Date(lastRankSync).getTime() : Infinity;
 
   if (!forceRefresh && dbMatches.length && cacheAge < 1000 * 60 * 30) {
+    if ((!buildRankSummary().updatedAt || rankCacheAge > 1000 * 60 * 30) && process.env.RIOT_API_KEY) {
+      try {
+        await syncRanksForAccounts();
+      } catch (error) {
+        console.error("rank sync failed:", error.message);
+      }
+    }
     return buildStats(dbMatches, "sqlite");
   }
 
