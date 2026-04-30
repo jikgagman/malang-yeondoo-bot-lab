@@ -29,7 +29,9 @@ http://localhost:4173
 
 ## 게임 오버레이 자동 실행
 
-피시방 Windows PC에서 LoL 게임이 시작될 때 짜증 카운트 오버레이를 자동으로 띄우려면 아래 파일을 실행합니다.
+피시방 Windows PC에서는 GitHub Actions에서 만든 `MalangYeondooOverlay.exe`를 내려받아 실행하면 됩니다. Node.js 설치가 필요 없습니다.
+
+EXE가 없을 때 임시로 스크립트 버전을 실행하려면 아래 파일을 실행합니다.
 
 ```text
 start-overlay-windows.cmd
@@ -41,7 +43,7 @@ start-overlay-windows.cmd
 npm run start:overlay:windows
 ```
 
-이 명령은 로컬 LCU 프록시와 Windows 오버레이 런처를 같이 켭니다. 런처는 `http://127.0.0.1:4173/api/live`를 2초마다 확인하고, LoL 상태가 `InProgress`가 되면 왼쪽 위에 작은 TopMost 오버레이 창을 띄웁니다. 게임이 끝나면 자동으로 숨깁니다.
+Windows 런처는 LoL 클라이언트의 `lockfile`을 직접 읽고 LCU의 `/lol-gameflow/v1/gameflow-phase`를 2초마다 확인합니다. 상태가 `InProgress`가 되면 왼쪽 위에 작은 TopMost 오버레이 창을 띄웁니다. 게임이 끝나면 자동으로 숨깁니다.
 
 macOS에서 테스트할 때는 아래 명령을 씁니다.
 
@@ -59,8 +61,15 @@ https://malang-yeondoo-bot-lab.onrender.com/api/tilt
 
 로컬 DB에 저장하고 싶으면 이렇게 실행할 수 있습니다.
 
-```bash
-TILT_API_URL="http://localhost:4173/api/tilt" npm run start:overlay:windows
+```powershell
+$env:TILT_API_URL="http://localhost:4173/api/tilt"
+.\start-overlay-windows.cmd
+```
+
+Windows EXE는 GitHub Actions의 `Build Windows Overlay` 워크플로우가 `dist/MalangYeondooOverlay.exe` 아티팩트로 생성합니다. 로컬 Windows PC에서 직접 빌드할 때는 PowerShell에서 아래 명령을 실행합니다.
+
+```powershell
+.\scripts\build-windows-exe.ps1
 ```
 
 ## Riot API 키

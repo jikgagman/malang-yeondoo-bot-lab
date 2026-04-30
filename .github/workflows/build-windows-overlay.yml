@@ -1,0 +1,28 @@
+name: Build Windows Overlay
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/TiltOverlayLauncher.ps1"
+      - "scripts/build-windows-exe.ps1"
+      - ".github/workflows/build-windows-overlay.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build exe
+        shell: pwsh
+        run: ./scripts/build-windows-exe.ps1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MalangYeondooOverlay-windows
+          path: dist/MalangYeondooOverlay.exe

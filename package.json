@@ -8,7 +8,7 @@
     "overlay:mac": "swift scripts/TiltOverlayLauncher.swift",
     "overlay:windows": "powershell -ExecutionPolicy Bypass -File scripts/TiltOverlayLauncher.ps1",
     "start:overlay": "node scripts/run-local-overlay.mjs",
-    "start:overlay:windows": "node scripts/run-local-overlay-windows.mjs",
+    "start:overlay:windows": "powershell -ExecutionPolicy Bypass -File scripts/TiltOverlayLauncher.ps1",
     "check": "node --check app.js && node --check lcu-proxy.js"
   }
 }

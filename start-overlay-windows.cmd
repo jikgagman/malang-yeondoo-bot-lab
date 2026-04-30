@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-npm run start:overlay:windows
+powershell -ExecutionPolicy Bypass -File "%~dp0scripts\TiltOverlayLauncher.ps1"
 pause

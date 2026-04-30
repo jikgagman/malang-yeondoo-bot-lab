@@ -3,7 +3,6 @@ $ErrorActionPreference = "SilentlyContinue"
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-$LiveUrl = "http://127.0.0.1:4173/api/live"
 $TiltUrl = if ($env:TILT_API_URL) { $env:TILT_API_URL } else { "https://malang-yeondoo-bot-lab.onrender.com/api/tilt" }
 $PollMs = 2000
 $GameIsActive = $false
@@ -13,8 +12,56 @@ $Counts = @{
   yeondoo = 0
 }
 
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
 function New-SessionId {
   return "game-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+}
+
+function Get-LockfilePath {
+  $candidates = @()
+  if ($env:LCU_LOCKFILE) {
+    $candidates += $env:LCU_LOCKFILE
+  }
+  $candidates += @(
+    "C:\Riot Games\League of Legends\lockfile",
+    "C:\Program Files\Riot Games\League of Legends\lockfile",
+    "C:\Program Files (x86)\Riot Games\League of Legends\lockfile"
+  )
+
+  foreach ($path in $candidates) {
+    if (Test-Path $path) {
+      return $path
+    }
+  }
+  return $null
+}
+
+function Get-GameflowPhase {
+  $lockfilePath = Get-LockfilePath
+  if (-not $lockfilePath) {
+    return "Disconnected"
+  }
+
+  $parts = (Get-Content $lockfilePath -Raw).Trim().Split(":")
+  if ($parts.Length -lt 5) {
+    return "Disconnected"
+  }
+
+  $port = $parts[2]
+  $password = $parts[3]
+  $authBytes = [System.Text.Encoding]::UTF8.GetBytes("riot:$password")
+  $auth = [Convert]::ToBase64String($authBytes)
+
+  try {
+    return Invoke-RestMethod `
+      -Uri "https://127.0.0.1:$port/lol-gameflow/v1/gameflow-phase" `
+      -Headers @{ Authorization = "Basic $auth" } `
+      -TimeoutSec 2
+  } catch {
+    return "Disconnected"
+  }
 }
 
 function Invoke-TiltCount {
@@ -108,14 +155,10 @@ $script:Form.Controls.Add($script:YeondooButton)
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $PollMs
 $timer.Add_Tick({
-  try {
-    $live = Invoke-RestMethod -Uri $LiveUrl -TimeoutSec 2
-    if ($live.phase -eq "InProgress") {
-      Show-Overlay
-    } else {
-      Hide-Overlay
-    }
-  } catch {
+  $phase = Get-GameflowPhase
+  if ($phase -eq "InProgress") {
+    Show-Overlay
+  } else {
     Hide-Overlay
   }
 })
