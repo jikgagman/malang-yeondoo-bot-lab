@@ -157,6 +157,15 @@ function initDb() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS tilt_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_key TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      note TEXT,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -247,6 +256,71 @@ function readMatchesFromDb(limit = STATS_WINDOW) {
     ORDER BY game_end_timestamp DESC
     LIMIT ${Number(limit)};
   `).map((row) => JSON.parse(row.raw_json));
+}
+
+function recordTiltEvent(payload) {
+  initDb();
+  const playerKey = payload?.player;
+  if (!DUO_PLAYERS.some((player) => player.key === playerKey)) {
+    throw new Error("알 수 없는 플레이어예요.");
+  }
+  const nowMs = Date.now();
+  const now = new Date(nowMs).toISOString();
+  const sessionId = String(payload.sessionId || `manual-${new Date(nowMs).toISOString().slice(0, 10)}`).slice(0, 80);
+  const phase = String(payload.phase || "manual").slice(0, 40);
+  const note = payload.note ? String(payload.note).slice(0, 120) : "";
+
+  sqliteExec(`
+    INSERT INTO tilt_events (player_key, session_id, phase, created_at, note, updated_at)
+    VALUES (${sqlValue(playerKey)}, ${sqlValue(sessionId)}, ${sqlValue(phase)}, ${sqlValue(nowMs)}, ${sqlValue(note)}, ${sqlValue(now)});
+  `);
+
+  return buildTiltStats(readMatchesFromDb());
+}
+
+function readTiltCounts(sinceTimestamp = 0) {
+  const rows = sqliteJson(`
+    SELECT player_key, COUNT(*) AS count
+    FROM tilt_events
+    WHERE created_at >= ${sqlValue(Number(sinceTimestamp) || 0)}
+    GROUP BY player_key;
+  `);
+  return rows.reduce(
+    (acc, row) => {
+      acc[row.player_key] = Number(row.count || 0);
+      return acc;
+    },
+    { malang: 0, yeondoo: 0 },
+  );
+}
+
+function buildTiltStats(matches) {
+  const sinceTimestamp = matches.length ? Math.min(...matches.map((match) => Number(match.gameEndTimestamp || 0)).filter(Boolean)) : 0;
+  const counts = readTiltCounts(sinceTimestamp);
+  const total = counts.malang + counts.yeondoo;
+  const gameCount = Math.max(matches.length, 1);
+  const averagePerGame = Number((total / gameCount).toFixed(2));
+
+  return {
+    averagePerGame,
+    total,
+    players: [
+      {
+        key: "malang",
+        name: "말랑",
+        count: counts.malang,
+        gauge: counts.malang % 20,
+        snacksOwed: Math.floor(counts.malang / 20),
+      },
+      {
+        key: "yeondoo",
+        name: "연두",
+        count: counts.yeondoo,
+        gauge: counts.yeondoo % 20,
+        snacksOwed: Math.floor(counts.yeondoo / 20),
+      },
+    ],
+  };
 }
 
 function seedDbFromJsonCache() {
@@ -441,6 +515,7 @@ function buildStats(matches, source) {
     matches,
     bestPair: bestPair ? bestPair[0] : null,
     insights: buildDuoInsights(matches, bestPair?.[0]),
+    tilt: buildTiltStats(matches),
     cards: [
       ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `최근 듀오 ${total}게임 중 ${wins}승`],
       ["평균 듀오 KDA", kda, `합산 ${kdaKills}/${kdaDeaths}/${kdaAssists}`],
@@ -698,10 +773,36 @@ function sendJson(response, statusCode, payload) {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   });
   response.end(JSON.stringify(payload));
+}
+
+function readRequestJson(request) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 10_000) {
+        reject(new Error("요청이 너무 커요."));
+        request.destroy();
+      }
+    });
+    request.on("end", () => {
+      if (!body) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(body));
+      } catch (error) {
+        reject(new Error("JSON 형식이 올바르지 않아요."));
+      }
+    });
+    request.on("error", reject);
+  });
 }
 
 function serveStatic(request, response) {
@@ -734,7 +835,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     });
     response.end();
@@ -771,6 +872,33 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, await statsPayload(url.searchParams.get("refresh") === "1"));
     } catch (error) {
       sendJson(response, 503, {
+        ok: false,
+        error: error.message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (request.url.startsWith("/api/tilt")) {
+    try {
+      initDb();
+      if (request.method === "POST") {
+        const payload = await readRequestJson(request);
+        sendJson(response, 200, {
+          ok: true,
+          tilt: recordTiltEvent(payload),
+          updatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+      sendJson(response, 200, {
+        ok: true,
+        tilt: buildTiltStats(readMatchesFromDb()),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      sendJson(response, 400, {
         ok: false,
         error: error.message,
         updatedAt: new Date().toISOString(),

@@ -191,6 +191,7 @@ const state = {
   enemyPicks: new Set(),
   phase: "None",
   localPlayerChampion: "",
+  sessionId: `manual-${new Date().toISOString().slice(0, 10)}`,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -228,6 +229,9 @@ function setLiveStatus(status, title, detail) {
 function updateLiveSession(payload) {
   const inChampionSelect = payload?.phase === "ChampSelect" && payload?.champSelect;
   state.phase = payload?.phase || "None";
+  state.sessionId = payload?.champSelect
+    ? `champselect-${JSON.stringify(payload.champSelect.myTeam || []).length}-${payload.updatedAt || Date.now()}`
+    : `manual-${new Date().toISOString().slice(0, 10)}`;
 
   if (!inChampionSelect) {
     setLiveStatus(
@@ -372,6 +376,7 @@ function renderStats() {
   renderStatCards(fallbackDuoStats);
   renderRecentMatches([]);
   renderDuoInsights([]);
+  renderTiltStats(null);
 }
 
 async function detectCurrentUser() {
@@ -416,8 +421,61 @@ async function loadRiotStats() {
     if (payload.bestPair) {
       updateHeroDuo(payload.bestPair);
     }
+    renderTiltStats(payload.tilt);
   } catch (error) {
     console.warn("Using fallback duo stats:", error.message);
+  }
+}
+
+function renderTiltStats(tilt) {
+  const fallback = {
+    averagePerGame: 0,
+    players: [
+      { key: "malang", name: "말랑", count: 0, gauge: 0, snacksOwed: 0 },
+      { key: "yeondoo", name: "연두", count: 0, gauge: 0, snacksOwed: 0 },
+    ],
+  };
+  const data = tilt || fallback;
+  $("#tiltAverage").textContent = `게임당 평균 ${Number(data.averagePerGame || 0).toFixed(2)}회`;
+  $("#tiltGauges").innerHTML = data.players
+    .map((player) => {
+      const gauge = Math.min(20, Number(player.gauge || 0));
+      const percent = Math.round((gauge / 20) * 100);
+      const snackText = player.snacksOwed ? `간식 ${player.snacksOwed}번 확정` : `간식까지 ${20 - gauge}회`;
+      return `
+        <article class="tilt-gauge-card ${player.key}">
+          <div class="tilt-gauge-top">
+            <strong>${player.name}</strong>
+            <span>${player.count}회</span>
+          </div>
+          <div class="tilt-track" aria-label="${player.name} 짜증 게이지 ${gauge}/20">
+            <span style="width: ${percent}%"></span>
+            <b>🍪</b>
+          </div>
+          <small>${gauge}/20 · ${snackText}</small>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+async function addTiltCount(player) {
+  try {
+    const response = await fetch(apiUrl("/api/tilt"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        player,
+        phase: state.phase,
+        sessionId: state.sessionId,
+      }),
+    });
+    if (!response.ok) throw new Error("tilt unavailable");
+    const payload = await response.json();
+    renderTiltStats(payload.tilt);
+    loadRiotStats();
+  } catch (error) {
+    console.warn("Tilt count failed:", error.message);
   }
 }
 
@@ -501,6 +559,10 @@ function bindEvents() {
   $("#switchUser").addEventListener("click", () => {
     localStorage.removeItem("duo-user");
     $("#identityGate").classList.remove("is-hidden");
+  });
+
+  document.querySelectorAll("[data-tilt-player]").forEach((button) => {
+    button.addEventListener("click", () => addTiltCount(button.dataset.tiltPlayer));
   });
 }
 

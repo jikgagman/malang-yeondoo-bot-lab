@@ -931,6 +931,47 @@ a {
   line-height: 1.5;
 }
 
+.tilt-counter-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(112deg, rgba(255, 185, 94, 0.16) 0 2px, transparent 2px 8px),
+    #fff8e9;
+  box-shadow: 5px 6px 0 rgba(40, 49, 66, 0.1);
+}
+
+.tilt-counter-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tilt-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tilt-buttons button {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--rose);
+  box-shadow: 3px 4px 0 rgba(40, 49, 66, 0.12);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
 .status-badge {
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -1198,13 +1239,15 @@ select {
 }
 
 .match-history,
-.duo-insights {
+.duo-insights,
+.tilt-stats {
   margin-top: 18px;
   padding: 20px;
 }
 
 .match-history h3,
-.duo-insights h3 {
+.duo-insights h3,
+.tilt-stats h3 {
   margin: 0 0 14px;
 }
 
@@ -1276,6 +1319,96 @@ select {
   display: block;
   margin: 6px 0;
   font-size: 1.45rem;
+}
+
+.tilt-stats {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 94% 18%, rgba(255, 206, 105, 0.22), transparent 8rem),
+    var(--paper);
+  box-shadow: 5px 6px 0 rgba(40, 49, 66, 0.1);
+}
+
+.tilt-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.tilt-heading h3 {
+  margin: 0;
+}
+
+.tilt-gauges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tilt-gauge-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.tilt-gauge-card.malang {
+  background:
+    repeating-linear-gradient(112deg, rgba(77, 184, 129, 0.14) 0 2px, transparent 2px 9px),
+    rgba(255, 255, 255, 0.82);
+}
+
+.tilt-gauge-card.yeondoo {
+  background:
+    repeating-linear-gradient(112deg, rgba(255, 169, 186, 0.2) 0 2px, transparent 2px 9px),
+    rgba(255, 255, 255, 0.82);
+}
+
+.tilt-gauge-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  font-weight: 900;
+}
+
+.tilt-gauge-top span {
+  color: var(--muted);
+}
+
+.tilt-track {
+  position: relative;
+  height: 28px;
+  margin: 12px 0 8px;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.tilt-track span {
+  display: block;
+  height: 100%;
+  border-right: 2px solid rgba(40, 49, 66, 0.24);
+  background:
+    repeating-linear-gradient(112deg, rgba(255, 255, 255, 0.34) 0 4px, transparent 4px 10px),
+    linear-gradient(90deg, #a9e8c4, #ffb8c4, #ffd66f);
+}
+
+.tilt-track b {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 1.05rem;
+}
+
+.tilt-gauge-card small {
+  color: var(--muted);
+  font-weight: 800;
 }
 
 .data-grid {
@@ -1372,6 +1505,15 @@ select {
   .live-status-card {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .tilt-counter-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tilt-gauges {
+    grid-template-columns: 1fr;
   }
 
   .section-title {

@@ -125,6 +125,13 @@
           <h3>듀오 전용 지표</h3>
           <div id="ideaList" class="idea-list"></div>
         </div>
+        <div class="tilt-stats">
+          <div class="tilt-heading">
+            <h3>짜증 게이지</h3>
+            <span id="tiltAverage" class="role-chip">평균 계산 중</span>
+          </div>
+          <div id="tiltGauges" class="tilt-gauges"></div>
+        </div>
       </section>
 
       <section id="live" class="section-shell live-shell">
@@ -140,6 +147,17 @@
             <small id="liveStatusDetail">아직 픽창 신호가 없어요. 실제 게임에서 픽창에 들어가면 자동 분석 화면으로 전환됩니다.</small>
           </div>
           <span id="liveBadge" class="status-badge idle">대기</span>
+        </div>
+
+        <div class="tilt-counter-card">
+          <div>
+            <strong>실시간 짜증 카운팅</strong>
+            <small>게임 중 화낸 사람이 있으면 바로 눌러요. 카운트는 DB에 저장되고 통계 게이지에 반영됩니다.</small>
+          </div>
+          <div class="tilt-buttons">
+            <button type="button" data-tilt-player="malang">말랑 화냄 +1</button>
+            <button type="button" data-tilt-player="yeondoo">연두 화냄 +1</button>
+          </div>
         </div>
 
         <div id="livePanel" class="live-panel is-sleeping">
