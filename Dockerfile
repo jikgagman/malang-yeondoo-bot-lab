@@ -6,6 +6,7 @@ WORKDIR /app
 
 COPY package.json ./
 COPY index.html styles.css app.js lcu-proxy.js README.md ./
+COPY seed ./seed
 
 ENV NODE_ENV=production
 ENV PORT=4173
