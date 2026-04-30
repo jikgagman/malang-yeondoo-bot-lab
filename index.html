@@ -39,6 +39,7 @@
         </a>
         <div class="nav-tabs">
           <a href="#stats">통계</a>
+          <a href="#champion-tiers">티어</a>
           <a href="#live">실시간</a>
         </div>
         <button id="switchUser" class="ghost-button" type="button" aria-label="사용자 변경">↺</button>
@@ -115,9 +116,68 @@
         </div>
       </section>
 
-      <section id="live" class="section-shell live-shell">
+      <section id="champion-tiers" class="section-shell champion-tier-shell">
         <div class="section-title">
           <span>02</span>
+          <h2>최근 바텀 챔피언 티어</h2>
+          <p>원딜과 서폿을 나눠서 현재 바텀 메타를 빠르게 훑어봐요.</p>
+        </div>
+
+        <div class="tier-toolbar" role="tablist" aria-label="랭크 구간 선택">
+          <button type="button" class="is-active" data-tier-group="low">브실골플</button>
+          <button type="button" data-tier-group="emerald">에메+</button>
+          <button type="button" data-tier-group="diamond">다이아</button>
+          <button type="button" data-tier-group="challenger">챌린저</button>
+        </div>
+
+        <div class="lane-tier-layout">
+          <article class="lane-tier-card">
+            <div class="lane-tier-head">
+              <div>
+                <small>BOT CARRY</small>
+                <h3>원딜 티어리스트</h3>
+              </div>
+              <span id="adcTierUpdated" class="role-chip">갱신 중</span>
+            </div>
+            <div class="tier-table">
+              <div class="tier-table-head">
+                <span>#</span>
+                <span>챔피언</span>
+                <span>티어</span>
+                <span>승률</span>
+                <span>픽률</span>
+                <span>밴률</span>
+              </div>
+              <div id="adcTierList" class="tier-list"></div>
+            </div>
+          </article>
+
+          <article class="lane-tier-card">
+            <div class="lane-tier-head">
+              <div>
+                <small>SUPPORT</small>
+                <h3>서폿 티어리스트</h3>
+              </div>
+              <span id="supportTierUpdated" class="role-chip">갱신 중</span>
+            </div>
+            <div class="tier-table">
+              <div class="tier-table-head">
+                <span>#</span>
+                <span>챔피언</span>
+                <span>티어</span>
+                <span>승률</span>
+                <span>픽률</span>
+                <span>밴률</span>
+              </div>
+              <div id="supportTierList" class="tier-list"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="live" class="section-shell live-shell">
+        <div class="section-title">
+          <span>03</span>
           <h2>픽창 실시간 감지</h2>
           <p>LoL 클라이언트 픽창이 감지되면 추천 픽과 빌드 패널이 자동으로 열립니다.</p>
         </div>

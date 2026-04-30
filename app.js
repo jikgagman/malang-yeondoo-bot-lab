@@ -206,6 +206,7 @@ const state = {
   phase: "None",
   localPlayerChampion: "",
   sessionId: `manual-${new Date().toISOString().slice(0, 10)}`,
+  tierGroup: "low",
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -588,6 +589,52 @@ function renderRankHero(ranks) {
   renderRankGraph(ranks);
 }
 
+function tierDelta(delta) {
+  const value = Number(delta || 0);
+  if (!value) return `<span class="tier-delta same">-</span>`;
+  const sign = value > 0 ? "↑" : "↓";
+  return `<span class="tier-delta ${value > 0 ? "up" : "down"}">${sign} ${Math.abs(value)}</span>`;
+}
+
+function renderLaneTierList(target, champions) {
+  target.innerHTML = champions
+    .map(
+      (champion, index) => `
+        <article class="tier-row">
+          <span class="tier-rank">${index + 1}</span>
+          ${tierDelta(champion.delta)}
+          <span class="champion-token">${champion.champion.slice(0, 1)}</span>
+          <strong>${champion.champion}</strong>
+          <span class="tier-badge tier-${champion.tier}">${champion.tier}</span>
+          <span>${Number(champion.winRate).toFixed(2)}%</span>
+          <span>${Number(champion.pickRate).toFixed(2)}%</span>
+          <span>${Number(champion.banRate).toFixed(2)}%</span>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+async function loadChampionTiers(group = state.tierGroup) {
+  state.tierGroup = group;
+  document.querySelectorAll("[data-tier-group]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.tierGroup === group);
+  });
+
+  try {
+    const response = await fetch(apiUrl(`/api/champion-tiers?group=${encodeURIComponent(group)}`), { cache: "no-store" });
+    if (!response.ok) throw new Error("tier unavailable");
+    const payload = await response.json();
+    renderLaneTierList($("#adcTierList"), payload.tiers.adc || []);
+    renderLaneTierList($("#supportTierList"), payload.tiers.support || []);
+    const updated = new Date(payload.updatedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("#adcTierUpdated").textContent = `${payload.label} · ${updated}`;
+    $("#supportTierUpdated").textContent = `${payload.label} · ${updated}`;
+  } catch (error) {
+    console.warn("Champion tiers failed:", error.message);
+  }
+}
+
 function renderRecentMatches(matches) {
   const target = $("#recentMatches");
   const latest = matches.slice(0, 6);
@@ -639,12 +686,16 @@ function bindEvents() {
     $("#identityGate").classList.remove("is-hidden");
   });
 
+  document.querySelectorAll("[data-tier-group]").forEach((button) => {
+    button.addEventListener("click", () => loadChampionTiers(button.dataset.tierGroup));
+  });
 }
 
 bindEvents();
 initUser();
 renderStats();
 loadRiotStats();
+loadChampionTiers();
 renderPickLists();
 renderRecommendations();
 renderAutoBuild();

@@ -99,6 +99,101 @@ const championNameMap = {
   Ziggs: "직스",
 };
 
+const CHAMPION_TIERS = {
+  low: {
+    label: "브실골플",
+    adc: [
+      { champion: "미스 포츈", tier: 1, ps: 54.8, winRate: 52.4, pickRate: 10.6, banRate: 7.8, sample: 8420, delta: 3 },
+      { champion: "징크스", tier: 1, ps: 54.1, winRate: 51.8, pickRate: 13.2, banRate: 9.1, sample: 10540, delta: 1 },
+      { champion: "애쉬", tier: 1, ps: 53.7, winRate: 51.5, pickRate: 11.8, banRate: 6.4, sample: 9860, delta: 4 },
+      { champion: "케이틀린", tier: 2, ps: 52.9, winRate: 50.7, pickRate: 14.4, banRate: 12.9, sample: 11220, delta: -1 },
+      { champion: "진", tier: 2, ps: 52.5, winRate: 51.1, pickRate: 8.9, banRate: 3.2, sample: 7280, delta: 2 },
+      { champion: "베인", tier: 2, ps: 51.8, winRate: 50.3, pickRate: 7.2, banRate: 8.4, sample: 6120, delta: 5 },
+      { champion: "카이사", tier: 3, ps: 50.9, winRate: 49.8, pickRate: 15.1, banRate: 13.8, sample: 11900, delta: -2 },
+      { champion: "자야", tier: 3, ps: 50.3, winRate: 50.1, pickRate: 5.1, banRate: 2.6, sample: 3880, delta: 0 },
+    ],
+    support: [
+      { champion: "세라핀", tier: 1, ps: 55.1, winRate: 52.9, pickRate: 7.7, banRate: 4.3, sample: 6210, delta: 6 },
+      { champion: "룰루", tier: 1, ps: 54.3, winRate: 51.7, pickRate: 10.4, banRate: 9.6, sample: 8440, delta: 2 },
+      { champion: "노틸러스", tier: 1, ps: 53.8, winRate: 50.9, pickRate: 12.8, banRate: 15.5, sample: 9920, delta: -1 },
+      { champion: "레오나", tier: 2, ps: 52.7, winRate: 51.2, pickRate: 8.1, banRate: 7.9, sample: 6900, delta: 4 },
+      { champion: "밀리오", tier: 2, ps: 52.1, winRate: 51.6, pickRate: 5.6, banRate: 3.8, sample: 4740, delta: 1 },
+      { champion: "블리츠크랭크", tier: 2, ps: 51.7, winRate: 50.4, pickRate: 11.2, banRate: 22.6, sample: 8700, delta: -3 },
+      { champion: "라칸", tier: 3, ps: 50.8, winRate: 50.2, pickRate: 6.8, banRate: 4.9, sample: 5120, delta: 0 },
+      { champion: "브라움", tier: 3, ps: 50.4, winRate: 50.6, pickRate: 3.1, banRate: 1.4, sample: 2380, delta: 3 },
+    ],
+  },
+  emerald: {
+    label: "에메+",
+    adc: [
+      { champion: "이즈리얼", tier: 1, ps: 54.6, winRate: 51.0, pickRate: 18.2, banRate: 11.4, sample: 7210, delta: 2 },
+      { champion: "징크스", tier: 1, ps: 54.2, winRate: 51.4, pickRate: 12.6, banRate: 8.8, sample: 5050, delta: 1 },
+      { champion: "루시안", tier: 1, ps: 53.4, winRate: 50.8, pickRate: 9.4, banRate: 9.9, sample: 3910, delta: 5 },
+      { champion: "카이사", tier: 2, ps: 52.8, winRate: 50.1, pickRate: 16.7, banRate: 14.2, sample: 6590, delta: -1 },
+      { champion: "케이틀린", tier: 2, ps: 52.2, winRate: 50.4, pickRate: 13.9, banRate: 12.1, sample: 5430, delta: -2 },
+      { champion: "애쉬", tier: 2, ps: 51.6, winRate: 50.7, pickRate: 8.6, banRate: 5.8, sample: 3480, delta: 3 },
+      { champion: "자야", tier: 3, ps: 50.9, winRate: 50.2, pickRate: 6.2, banRate: 3.7, sample: 2450, delta: 1 },
+      { champion: "제리", tier: 3, ps: 50.1, winRate: 49.7, pickRate: 5.9, banRate: 6.1, sample: 2210, delta: -3 },
+    ],
+    support: [
+      { champion: "라칸", tier: 1, ps: 54.9, winRate: 51.8, pickRate: 9.2, banRate: 6.4, sample: 3610, delta: 3 },
+      { champion: "룰루", tier: 1, ps: 54.1, winRate: 51.2, pickRate: 10.8, banRate: 9.7, sample: 4300, delta: 0 },
+      { champion: "렐", tier: 1, ps: 53.6, winRate: 51.4, pickRate: 6.4, banRate: 5.6, sample: 2560, delta: 4 },
+      { champion: "노틸러스", tier: 2, ps: 52.5, winRate: 50.2, pickRate: 13.5, banRate: 16.2, sample: 5410, delta: -2 },
+      { champion: "밀리오", tier: 2, ps: 52.0, winRate: 51.0, pickRate: 5.7, banRate: 3.2, sample: 2170, delta: 1 },
+      { champion: "세라핀", tier: 2, ps: 51.7, winRate: 51.6, pickRate: 4.1, banRate: 2.5, sample: 1660, delta: 2 },
+      { champion: "쓰레쉬", tier: 3, ps: 50.8, winRate: 49.9, pickRate: 12.1, banRate: 10.6, sample: 4750, delta: -1 },
+      { champion: "브라움", tier: 3, ps: 50.5, winRate: 50.8, pickRate: 3.4, banRate: 1.7, sample: 1320, delta: 2 },
+    ],
+  },
+  diamond: {
+    label: "다이아",
+    adc: [
+      { champion: "이즈리얼", tier: 1, ps: 55.0, winRate: 51.3, pickRate: 19.4, banRate: 12.0, sample: 2880, delta: 1 },
+      { champion: "루시안", tier: 1, ps: 54.3, winRate: 51.1, pickRate: 10.8, banRate: 11.7, sample: 1640, delta: 3 },
+      { champion: "징크스", tier: 1, ps: 53.5, winRate: 50.8, pickRate: 11.1, banRate: 8.1, sample: 1800, delta: -1 },
+      { champion: "카이사", tier: 2, ps: 52.9, winRate: 50.0, pickRate: 17.2, banRate: 14.8, sample: 2590, delta: 0 },
+      { champion: "자야", tier: 2, ps: 52.0, winRate: 50.7, pickRate: 7.1, banRate: 4.2, sample: 980, delta: 2 },
+      { champion: "케이틀린", tier: 2, ps: 51.4, winRate: 49.9, pickRate: 12.8, banRate: 11.4, sample: 1910, delta: -3 },
+      { champion: "애쉬", tier: 3, ps: 50.9, winRate: 50.1, pickRate: 7.9, banRate: 5.0, sample: 1120, delta: 1 },
+      { champion: "제리", tier: 3, ps: 50.2, winRate: 49.6, pickRate: 6.4, banRate: 6.8, sample: 860, delta: -1 },
+    ],
+    support: [
+      { champion: "라칸", tier: 1, ps: 55.2, winRate: 52.0, pickRate: 10.1, banRate: 7.3, sample: 1490, delta: 2 },
+      { champion: "렐", tier: 1, ps: 54.6, winRate: 51.9, pickRate: 7.6, banRate: 6.8, sample: 1080, delta: 4 },
+      { champion: "룰루", tier: 1, ps: 53.8, winRate: 50.9, pickRate: 11.4, banRate: 10.2, sample: 1710, delta: -1 },
+      { champion: "쓰레쉬", tier: 2, ps: 52.6, winRate: 50.3, pickRate: 13.2, banRate: 11.0, sample: 1980, delta: 1 },
+      { champion: "노틸러스", tier: 2, ps: 52.0, winRate: 49.8, pickRate: 13.9, banRate: 16.8, sample: 2050, delta: -2 },
+      { champion: "밀리오", tier: 2, ps: 51.5, winRate: 50.6, pickRate: 5.2, banRate: 3.1, sample: 720, delta: 0 },
+      { champion: "브라움", tier: 3, ps: 50.9, winRate: 51.0, pickRate: 3.7, banRate: 1.9, sample: 520, delta: 3 },
+      { champion: "세라핀", tier: 3, ps: 50.3, winRate: 50.7, pickRate: 3.1, banRate: 1.8, sample: 430, delta: -1 },
+    ],
+  },
+  challenger: {
+    label: "챌린저",
+    adc: [
+      { champion: "이즈리얼", tier: 1, ps: 55.7, winRate: 52.1, pickRate: 21.0, banRate: 13.4, sample: 390, delta: 1 },
+      { champion: "루시안", tier: 1, ps: 54.8, winRate: 51.8, pickRate: 12.6, banRate: 15.2, sample: 234, delta: 2 },
+      { champion: "카이사", tier: 1, ps: 53.9, winRate: 50.9, pickRate: 18.7, banRate: 16.5, sample: 344, delta: 0 },
+      { champion: "자야", tier: 2, ps: 52.8, winRate: 51.4, pickRate: 8.2, banRate: 5.6, sample: 151, delta: 4 },
+      { champion: "징크스", tier: 2, ps: 52.2, winRate: 50.6, pickRate: 10.4, banRate: 7.9, sample: 192, delta: -2 },
+      { champion: "제리", tier: 2, ps: 51.6, winRate: 50.1, pickRate: 7.1, banRate: 8.2, sample: 118, delta: 3 },
+      { champion: "케이틀린", tier: 3, ps: 50.8, winRate: 49.8, pickRate: 11.6, banRate: 12.8, sample: 210, delta: -1 },
+      { champion: "칼리스타", tier: 3, ps: 50.1, winRate: 49.6, pickRate: 4.9, banRate: 7.0, sample: 88, delta: 2 },
+    ],
+    support: [
+      { champion: "라칸", tier: 1, ps: 56.0, winRate: 52.8, pickRate: 11.9, banRate: 8.7, sample: 220, delta: 1 },
+      { champion: "렐", tier: 1, ps: 55.1, winRate: 52.3, pickRate: 8.8, banRate: 7.6, sample: 164, delta: 3 },
+      { champion: "쓰레쉬", tier: 1, ps: 54.2, winRate: 51.0, pickRate: 15.0, banRate: 12.2, sample: 278, delta: 2 },
+      { champion: "룰루", tier: 2, ps: 52.9, winRate: 50.7, pickRate: 11.1, banRate: 10.8, sample: 206, delta: -1 },
+      { champion: "노틸러스", tier: 2, ps: 52.0, winRate: 49.7, pickRate: 12.5, banRate: 15.9, sample: 232, delta: -3 },
+      { champion: "밀리오", tier: 2, ps: 51.7, winRate: 50.9, pickRate: 5.9, banRate: 3.8, sample: 109, delta: 2 },
+      { champion: "브라움", tier: 3, ps: 51.0, winRate: 51.2, pickRate: 4.1, banRate: 2.1, sample: 76, delta: 4 },
+      { champion: "파이크", tier: 3, ps: 50.2, winRate: 49.5, pickRate: 5.2, banRate: 9.9, sample: 96, delta: -2 },
+    ],
+  },
+};
+
 function loadEnvFile() {
   const envPath = path.join(ROOT, ".env");
   if (!fs.existsSync(envPath)) return;
@@ -1069,6 +1164,29 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, await statsPayload(url.searchParams.get("refresh") === "1"));
     } catch (error) {
       sendJson(response, 503, {
+        ok: false,
+        error: error.message,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (request.url.startsWith("/api/champion-tiers")) {
+    try {
+      const url = new URL(request.url, `http://localhost:${PORT}`);
+      const group = url.searchParams.get("group") || "low";
+      const tiers = CHAMPION_TIERS[group] || CHAMPION_TIERS.low;
+      sendJson(response, 200, {
+        ok: true,
+        group: CHAMPION_TIERS[group] ? group : "low",
+        label: tiers.label,
+        updatedAt: new Date().toISOString(),
+        minPickRate: "0.5%",
+        tiers,
+      });
+    } catch (error) {
+      sendJson(response, 400, {
         ok: false,
         error: error.message,
         updatedAt: new Date().toISOString(),
