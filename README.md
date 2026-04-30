@@ -27,6 +27,42 @@ http://localhost:4173
 
 사용자 선택값은 브라우저 `localStorage`에 저장됩니다.
 
+## 게임 오버레이 자동 실행
+
+피시방 Windows PC에서 LoL 게임이 시작될 때 짜증 카운트 오버레이를 자동으로 띄우려면 아래 파일을 실행합니다.
+
+```text
+start-overlay-windows.cmd
+```
+
+또는 터미널에서 직접 실행할 수 있습니다.
+
+```bash
+npm run start:overlay:windows
+```
+
+이 명령은 로컬 LCU 프록시와 Windows 오버레이 런처를 같이 켭니다. 런처는 `http://127.0.0.1:4173/api/live`를 2초마다 확인하고, LoL 상태가 `InProgress`가 되면 왼쪽 위에 작은 TopMost 오버레이 창을 띄웁니다. 게임이 끝나면 자동으로 숨깁니다.
+
+macOS에서 테스트할 때는 아래 명령을 씁니다.
+
+```bash
+npm run start:overlay
+```
+
+Windows 런처는 웹뷰가 아니라 작은 네이티브 버튼창입니다. `말랑`, `연두` 버튼을 누르면 현재 게임 카운트 숫자가 즉시 올라가고, 배포 서버 DB에 저장됩니다.
+
+오버레이 카운트는 기본적으로 배포 서버 API에 저장됩니다.
+
+```text
+https://malang-yeondoo-bot-lab.onrender.com/api/tilt
+```
+
+로컬 DB에 저장하고 싶으면 이렇게 실행할 수 있습니다.
+
+```bash
+TILT_API_URL="http://localhost:4173/api/tilt" npm run start:overlay:windows
+```
+
 ## Riot API 키
 
 제가 직접 Riot API 키를 발급하거나 넣은 것은 아닙니다. Riot API 키는 사용자가 [Riot Developer Portal](https://developer.riotgames.com/)에서 발급받아야 합니다.
@@ -84,6 +120,8 @@ op.gg 같은 사이트를 계속 긁는 방식은 권장하지 않습니다. 안
 - `/lol-champ-select/v1/session`
 
 웹앱은 `/api/live`를 2.5초마다 폴링합니다. 현재 상태가 `ChampSelect`이면 추천 패널과 3코어 빌드 패널이 자동으로 열립니다.
+
+오버레이 런처는 같은 `/api/live`를 읽고 현재 상태가 `InProgress`이면 짜증 카운트 오버레이를 왼쪽 위에 띄웁니다.
 
 macOS에서 lockfile 경로가 다르면 이렇게 직접 지정할 수 있습니다.
 

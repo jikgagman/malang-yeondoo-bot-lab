@@ -5,6 +5,10 @@
   "description": "말랑연두 바텀 듀오 전적 통계와 LoL 픽창 자동 추천 웹앱",
   "scripts": {
     "start": "node lcu-proxy.js",
+    "overlay:mac": "swift scripts/TiltOverlayLauncher.swift",
+    "overlay:windows": "powershell -ExecutionPolicy Bypass -File scripts/TiltOverlayLauncher.ps1",
+    "start:overlay": "node scripts/run-local-overlay.mjs",
+    "start:overlay:windows": "node scripts/run-local-overlay-windows.mjs",
     "check": "node --check app.js && node --check lcu-proxy.js"
   }
 }
