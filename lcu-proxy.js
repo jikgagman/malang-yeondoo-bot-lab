@@ -300,6 +300,7 @@ function insertRankSnapshots(ranks) {
   if (!ranks.length) return;
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
+  const today = now.slice(0, 10);
   const values = ranks
     .map(
       (rank) =>
@@ -308,6 +309,10 @@ function insertRankSnapshots(ranks) {
     .join(",\n");
 
   sqliteExec(`
+    DELETE FROM rank_snapshots
+    WHERE substr(updated_at, 1, 10) = ${sqlValue(today)}
+      AND player_key IN (${ranks.map((rank) => sqlValue(rank.key)).join(", ")});
+
     INSERT INTO rank_snapshots (player_key, queue_type, tier, rank_division, league_points, wins, losses, score, captured_at, updated_at)
     VALUES ${values};
   `);
@@ -318,7 +323,14 @@ function readRankSnapshots(limitPerPlayer = 12) {
     SELECT *
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY player_key ORDER BY captured_at DESC, id DESC) AS row_number
-      FROM rank_snapshots
+      FROM (
+        SELECT *
+        FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY player_key, substr(updated_at, 1, 10) ORDER BY captured_at DESC, id DESC) AS day_row_number
+          FROM rank_snapshots
+        )
+        WHERE day_row_number = 1
+      )
     )
     WHERE row_number <= ${Number(limitPerPlayer)}
     ORDER BY player_key, captured_at ASC, id ASC;

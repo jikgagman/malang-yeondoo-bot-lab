@@ -509,6 +509,10 @@ function rankLabel(rank) {
   return `${tier}${division}`;
 }
 
+function rankPointLabel(point) {
+  return `${rankLabel(point)} ${Number(point?.leaguePoints || 0)}LP`;
+}
+
 function renderRankCard(player) {
   const tierClass = String(player?.tier || "UNRANKED").toLowerCase();
   const wins = Number(player?.wins || 0);
@@ -534,25 +538,37 @@ function renderRankGraph(ranks) {
     key: player.key,
     name: player.name,
     color: player.key === "malang" ? "#3abf79" : "#e97b95",
-    values: (player.trend || []).map((point) => Number(point.score || 0)),
+    points: (player.trend || []).map((point) => ({
+      ...point,
+      score: Number(point.score || 0),
+    })),
   }));
-  const allValues = series.flatMap((item) => item.values);
+  const allValues = series.flatMap((item) => item.points.map((point) => point.score));
   const max = Math.max(...allValues, 1000);
   const min = Math.min(...allValues, max - 400);
   const range = Math.max(max - min, 200);
   const width = 420;
   const height = 180;
-  const pad = 26;
+  const pad = 42;
   const xFor = (index, count) => (count <= 1 ? width / 2 : pad + (index * (width - pad * 2)) / (count - 1));
   const yFor = (value) => height - pad - ((value - min) / range) * (height - pad * 2);
   const lines = series
     .map((item) => {
-      const values = item.values.length ? item.values : [min];
-      const points = values.map((value, index) => `${xFor(index, values.length)},${yFor(value)}`).join(" ");
-      const circles = values
-        .map((value, index) => `<circle cx="${xFor(index, values.length)}" cy="${yFor(value)}" r="4" fill="${item.color}"></circle>`)
+      const points = item.points.length ? item.points : [{ score: min, tier: "UNRANKED", rank: "", leaguePoints: 0 }];
+      const linePoints = points.map((point, index) => `${xFor(index, points.length)},${yFor(point.score)}`).join(" ");
+      const dots = points
+        .map((point, index) => {
+          const x = xFor(index, points.length);
+          const y = yFor(point.score);
+          const labelX = Math.max(54, Math.min(width - 54, x));
+          const labelY = Math.max(18, y - (item.key === "malang" ? 13 : -26));
+          return `
+            <circle cx="${x}" cy="${y}" r="5" fill="${item.color}"></circle>
+            <text x="${labelX}" y="${labelY}" text-anchor="middle" fill="#283142">${rankPointLabel(point)}</text>
+          `;
+        })
         .join("");
-      return `<polyline points="${points}" fill="none" stroke="${item.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>${circles}`;
+      return `<polyline points="${linePoints}" fill="none" stroke="${item.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>${dots}`;
     })
     .join("");
   $("#rankTrendGraph").innerHTML = `
