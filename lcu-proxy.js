@@ -13,6 +13,8 @@ const DB_FILE = path.join(DATA_DIR, "duo.sqlite");
 const SEED_FILE = path.join(ROOT, "seed", "duo-matches.json");
 const RIOT_REGION = process.env.RIOT_REGION || "asia";
 const RIOT_PLATFORM = process.env.RIOT_PLATFORM || "kr";
+const STATS_WINDOW = 20;
+const MATCH_SCAN_COUNT = 80;
 const DUO_PLAYERS = [
   { key: "malang", gameName: "말랑말랑바우게", tagLine: "KR1" },
   { key: "yeondoo", gameName: "연두색연두", tagLine: "KR1" },
@@ -71,6 +73,7 @@ const championNameMap = {
   Kaisa: "카이사",
   LeeSin: "리 신",
   Leona: "레오나",
+  Lux: "럭스",
   Lulu: "룰루",
   Malphite: "말파이트",
   Milio: "밀리오",
@@ -237,7 +240,7 @@ function getSyncMeta(key) {
   return rows[0]?.value || null;
 }
 
-function readMatchesFromDb(limit = 80) {
+function readMatchesFromDb(limit = STATS_WINDOW) {
   return sqliteJson(`
     SELECT raw_json
     FROM matches
@@ -342,17 +345,18 @@ async function fetchDuoMatches() {
   const [malangAccount, yeondooAccount] = accounts;
   const matchIds = await riotRequestWithRetry(
     regionalHost,
-    `/lol/match/v5/matches/by-puuid/${encodeURIComponent(malangAccount.puuid)}/ids?start=0&count=20`,
+    `/lol/match/v5/matches/by-puuid/${encodeURIComponent(malangAccount.puuid)}/ids?start=0&count=${MATCH_SCAN_COUNT}`,
   );
-  const details = [];
-  for (const matchId of matchIds.slice(0, 20)) {
-    details.push(await riotRequestWithRetry(regionalHost, `/lol/match/v5/matches/${matchId}`));
+  const summaries = [];
+  for (const matchId of matchIds.slice(0, MATCH_SCAN_COUNT)) {
+    const detail = await riotRequestWithRetry(regionalHost, `/lol/match/v5/matches/${matchId}`);
+    const summary = summarizeMatch(detail, malangAccount.puuid, yeondooAccount.puuid);
+    if (summary) summaries.push(summary);
+    if (summaries.length >= STATS_WINDOW) break;
     await wait(140);
   }
 
-  return details
-    .map((match) => summarizeMatch(match, malangAccount.puuid, yeondooAccount.puuid))
-    .filter(Boolean);
+  return summaries;
 }
 
 function summarizeMatch(match, malangPuuid, yeondooPuuid) {
@@ -425,6 +429,10 @@ function buildStats(matches, source) {
     return bRate - aRate || b[1] - a[1];
   })[0];
   const kda = kdaDeaths ? ((kdaKills + kdaAssists) / kdaDeaths).toFixed(2) : (kdaKills + kdaAssists).toFixed(2);
+  const recentFive = matches.slice(0, 5);
+  const recentFiveWins = recentFive.filter((match) => match.win).length;
+  const avgDuration = total ? Math.round(matches.reduce((sum, match) => sum + match.gameDuration, 0) / total / 60) : 0;
+  const avgDuoKills = total ? (kdaKills / total).toFixed(1) : "-";
 
   return {
     source,
@@ -434,14 +442,14 @@ function buildStats(matches, source) {
     bestPair: bestPair ? bestPair[0] : null,
     insights: buildDuoInsights(matches, bestPair?.[0]),
     cards: [
-      ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `${total}게임 중 ${wins}승`],
+      ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `최근 듀오 ${total}게임 중 ${wins}승`],
       ["평균 듀오 KDA", kda, `합산 ${kdaKills}/${kdaDeaths}/${kdaAssists}`],
       ["킬 관여율", total ? `${Math.round(killParticipation / total)}%` : "-", "두 명 합산 평균"],
       ["첫 용 연결률", total ? `${Math.round((firstDragons / total) * 100)}%` : "-", "팀 첫 용 획득 기준"],
       ["베스트 조합", bestPair ? bestPair[0] : "-", bestPair ? `${bestPair[1]}게임 표본` : "데이터 수집 전"],
-    ["최근 매치 수", String(total), "DB에 저장된 바텀 듀오 게임"],
-      ["데이터 출처", source === "riot" ? "Riot API" : source === "sqlite" ? "서버 DB" : "동기화 대기", "Riot API로 수집 후 DB 저장"],
-      ["갱신 시각", new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }), "로컬 서버 기준"],
+      ["최근 5게임 흐름", recentFive.length ? `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패` : "-", "가장 최근 듀오 게임 기준"],
+      ["평균 게임 시간", total ? `${avgDuration}분` : "-", "최근 듀오 게임 평균"],
+      ["평균 듀오 킬", total ? `${avgDuoKills}킬` : "-", "두 명 합산 평균"],
     ],
   };
 }
@@ -465,6 +473,7 @@ function buildDuoInsights(matches, bestPairName) {
   const avgDuration = Math.round(matches.reduce((sum, match) => sum + match.gameDuration, 0) / total / 60);
   const avgKillParticipation = Math.round(matches.reduce((sum, match) => sum + match.duoKillParticipation, 0) / total);
   const firstDragonRate = Math.round((matches.filter((match) => match.firstDragon).length / total) * 100);
+  const avgDuoDeaths = (matches.reduce((sum, match) => sum + match.duoKda.deaths, 0) / total).toFixed(1);
 
   return [
     ["최근 5게임 흐름", `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패`, "가장 최근 바텀 듀오 게임 기준"],
@@ -472,7 +481,7 @@ function buildDuoInsights(matches, bestPairName) {
     ["평균 게임 시간", `${avgDuration}분`, "저장된 바텀 듀오 게임 평균"],
     ["평균 킬 관여", `${avgKillParticipation}%`, "두 명의 killParticipation 평균"],
     ["첫 용 확보", `${firstDragonRate}%`, "우리 팀 첫 용 획득 비율"],
-    ["DB 저장 게임", String(total), "Riot API에서 확인된 실제 바텀 듀오 게임"],
+    ["평균 듀오 데스", `${avgDuoDeaths}데스`, "두 명 합산 평균"],
   ];
 }
 
@@ -483,7 +492,7 @@ function fallbackStats(reason) {
     cards: [
       ["동기화 상태", "대기", "Riot API 제한이 풀리면 자동 갱신"],
       ["저장된 게임", "0", "아직 서버 DB에 실제 듀오 게임이 없음"],
-      ["데이터 출처", "동기화 대기", "샘플 데이터는 표시하지 않음"],
+      ["최근 5게임 흐름", "-", "동기화 후 표시"],
       ["최근 오류", reason.includes("429") ? "API 제한" : "확인 필요", "잠시 후 다시 갱신"],
     ],
   };
