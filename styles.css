@@ -155,7 +155,7 @@ a {
   width: 46px;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: url("./assets/site-icon.png") center / cover no-repeat;
+  background: url("./assets/site-icon.png") center / 128% no-repeat;
   overflow: hidden;
   box-shadow:
     0 8px 16px rgba(40, 49, 66, 0.16),
