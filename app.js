@@ -597,9 +597,17 @@ function tierDelta(delta) {
 }
 
 function renderRoleIcon(role) {
+  if (role === "adc") {
+    return `
+      <span class="champion-token adc" aria-hidden="true">
+        <span class="poro-image-icon"></span>
+      </span>
+    `;
+  }
+
   return `
-    <span class="champion-token ${role}" aria-hidden="true">
-      <span class="${role === "adc" ? "bow-icon" : "sprout-icon"}"></span>
+    <span class="champion-token support" aria-hidden="true">
+      <span class="sprout-image-icon"></span>
     </span>
   `;
 }

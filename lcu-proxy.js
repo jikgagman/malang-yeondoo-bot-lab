@@ -33,6 +33,12 @@ const TIER_SCORE = {
   CHALLENGER: 3600,
 };
 const DIVISION_SCORE = { IV: 0, III: 100, II: 200, I: 300 };
+const POSITION_COMPARISON_GROUPS = [
+  { key: "bottomSupport", label: "원딜+서폿", carry: "BOTTOM" },
+  { key: "middleSupport", label: "미드+서폿", carry: "MIDDLE" },
+  { key: "topSupport", label: "탑+서폿", carry: "TOP" },
+  { key: "jungleSupport", label: "정글+서폿", carry: "JUNGLE" },
+];
 
 loadEnvFile();
 
@@ -258,6 +264,64 @@ const LOLALYTICS_LANES = {
 };
 
 const CHAMPION_TIER_CACHE_MS = 6 * 60 * 60 * 1000;
+const CHAMPION_TIER_CACHE_VERSION = 3;
+
+const ROLE_CHAMPIONS = {
+  adc: new Set([
+    "아펠리오스",
+    "애쉬",
+    "케이틀린",
+    "코르키",
+    "드레이븐",
+    "이즈리얼",
+    "진",
+    "징크스",
+    "카이사",
+    "칼리스타",
+    "코그모",
+    "루시안",
+    "미스 포츈",
+    "닐라",
+    "사미라",
+    "세나",
+    "시비르",
+    "스몰더",
+    "트리스타나",
+    "트위치",
+    "바루스",
+    "베인",
+    "자야",
+    "제리",
+  ]),
+  support: new Set([
+    "알리스타",
+    "바드",
+    "블리츠크랭크",
+    "브라움",
+    "잔나",
+    "카르마",
+    "레오나",
+    "럭스",
+    "룰루",
+    "밀리오",
+    "모르가나",
+    "나미",
+    "노틸러스",
+    "뽀삐",
+    "파이크",
+    "라칸",
+    "렐",
+    "세나",
+    "세라핀",
+    "소나",
+    "소라카",
+    "스웨인",
+    "쓰레쉬",
+    "벨코즈",
+    "유미",
+    "자이라",
+  ]),
+};
 
 function loadEnvFile() {
   const envPath = path.join(ROOT, ".env");
@@ -815,7 +879,7 @@ function normalizeChampionName(name) {
   return championNameMap[name] || championNameMap[name.replace(/[^A-Za-z]/g, "")] || name;
 }
 
-function parseLolalyticsTierHtml(html) {
+function parseLolalyticsTierHtml(html, role) {
   const lines = htmlTextLines(html);
   let cursor = lines.indexOf("Elo") + 1;
   if (cursor <= 0) throw new Error("티어 테이블을 찾지 못했어요.");
@@ -826,7 +890,7 @@ function parseLolalyticsTierHtml(html) {
     if (cursor >= lines.length) break;
 
     const rank = Number(lines[cursor]);
-    if (!Number.isFinite(rank) || rank <= 0 || rank > 200) {
+    if (!Number.isFinite(rank) || rank <= 0 || rank > 300) {
       cursor += 1;
       continue;
     }
@@ -850,9 +914,10 @@ function parseLolalyticsTierHtml(html) {
     const banRate = percentNumber(lines[next + 1]);
     const sample = Number(String(lines[next + 3] || "").replace(/,/g, ""));
 
-    if (champion && sourceTier && winRate && Number.isFinite(sample)) {
+    const localChampionName = normalizeChampionName(champion);
+    if (champion && sourceTier && winRate && Number.isFinite(sample) && ROLE_CHAMPIONS[role]?.has(localChampionName)) {
       rows.push({
-        champion: normalizeChampionName(champion),
+        champion: localChampionName,
         tier: sourceTierToLocalTier(sourceTier),
         sourceTier,
         ps: Number((winRate + pickRate * 0.25 - banRate * 0.05).toFixed(2)),
@@ -889,7 +954,7 @@ async function fetchLiveChampionTierLane(group, role) {
   const sourceTier = CHAMPION_TIER_GROUPS[group]?.sourceTier || CHAMPION_TIER_GROUPS.low.sourceTier;
   const lane = LOLALYTICS_LANES[role];
   const url = `https://lolalytics.com/lol/tierlist/?lane=${encodeURIComponent(lane)}&tier=${encodeURIComponent(sourceTier)}`;
-  return parseLolalyticsTierHtml(await textRequest(url));
+  return parseLolalyticsTierHtml(await textRequest(url), role);
 }
 
 async function championTierPayload(group) {
@@ -897,7 +962,7 @@ async function championTierPayload(group) {
   const cached = readChampionTierCache();
   const cachedEntry = cached[safeGroup];
   const now = Date.now();
-  if (cachedEntry && now - cachedEntry.fetchedAt < CHAMPION_TIER_CACHE_MS) {
+  if (cachedEntry?.version === CHAMPION_TIER_CACHE_VERSION && now - cachedEntry.fetchedAt < CHAMPION_TIER_CACHE_MS) {
     return { ...cachedEntry.payload, source: "lolalytics-cache" };
   }
 
@@ -912,7 +977,7 @@ async function championTierPayload(group) {
       source: "lolalytics",
       tiers: { label: CHAMPION_TIER_GROUPS[safeGroup].label, adc, support },
     };
-    cached[safeGroup] = { fetchedAt: now, payload };
+    cached[safeGroup] = { fetchedAt: now, version: CHAMPION_TIER_CACHE_VERSION, payload };
     writeChampionTierCache(cached);
     return payload;
   } catch (error) {
@@ -981,7 +1046,6 @@ function summarizeMatch(match, malangPuuid, yeondooPuuid) {
   if (!sameTeam) return null;
   const malangPosition = malang.teamPosition || malang.individualPosition;
   const yeondooPosition = yeondoo.teamPosition || yeondoo.individualPosition;
-  if (malangPosition !== "BOTTOM" || yeondooPosition !== "UTILITY") return null;
 
   const duoKills = malang.kills + yeondoo.kills;
   const duoAssists = malang.assists + yeondoo.assists;
@@ -998,6 +1062,9 @@ function summarizeMatch(match, malangPuuid, yeondooPuuid) {
     pair,
     malangChampion: toKoreanChampion(malang.championName),
     yeondooChampion: toKoreanChampion(yeondoo.championName),
+    malangPosition,
+    yeondooPosition,
+    positionGroup: duoPositionGroup(malangPosition, yeondooPosition),
     duoKda: {
       kills: duoKills,
       deaths: duoDeaths,
@@ -1010,13 +1077,26 @@ function summarizeMatch(match, malangPuuid, yeondooPuuid) {
   };
 }
 
+function duoPositionGroup(malangPosition, yeondooPosition) {
+  const positions = [malangPosition, yeondooPosition];
+  if (!positions.includes("UTILITY")) return "other";
+  const carryPosition = positions.find((position) => position !== "UTILITY");
+  return POSITION_COMPARISON_GROUPS.find((group) => group.carry === carryPosition)?.key || "other";
+}
+
+function isBottomDuoMatch(match) {
+  if (match.positionGroup) return match.positionGroup === "bottomSupport";
+  return true;
+}
+
 function toKoreanChampion(championName) {
   return championNameMap[championName] || championName || "알 수 없음";
 }
 
 function buildStats(matches, source) {
-  const wins = matches.filter((match) => match.win).length;
-  const total = matches.length;
+  const bottomMatches = matches.filter(isBottomDuoMatch);
+  const wins = bottomMatches.filter((match) => match.win).length;
+  const total = bottomMatches.length;
   const pairCounts = new Map();
   const pairWins = new Map();
   let killParticipation = 0;
@@ -1025,7 +1105,7 @@ function buildStats(matches, source) {
   let kdaAssists = 0;
   let firstDragons = 0;
 
-  matches.forEach((match) => {
+  bottomMatches.forEach((match) => {
     pairCounts.set(match.pair, (pairCounts.get(match.pair) || 0) + 1);
     if (match.win) pairWins.set(match.pair, (pairWins.get(match.pair) || 0) + 1);
     killParticipation += match.duoKillParticipation;
@@ -1041,41 +1121,61 @@ function buildStats(matches, source) {
     return bRate - aRate || b[1] - a[1];
   })[0];
   const kda = kdaDeaths ? ((kdaKills + kdaAssists) / kdaDeaths).toFixed(2) : (kdaKills + kdaAssists).toFixed(2);
-  const recentFive = matches.slice(0, 5);
+  const recentFive = bottomMatches.slice(0, 5);
   const recentFiveWins = recentFive.filter((match) => match.win).length;
-  const avgDuration = total ? Math.round(matches.reduce((sum, match) => sum + match.gameDuration, 0) / total / 60) : 0;
+  const avgDuration = total ? Math.round(bottomMatches.reduce((sum, match) => sum + match.gameDuration, 0) / total / 60) : 0;
   const avgDuoKills = total ? (kdaKills / total).toFixed(1) : "-";
+  const positionComparison = buildPositionComparison(matches);
 
   return {
     source,
     updatedAt: new Date().toISOString(),
     storage: "sqlite",
-    matches,
+    matches: bottomMatches,
+    allDuoMatches: matches,
     ranks: buildRankSummary(),
     bestPair: bestPair ? bestPair[0] : null,
-    insights: buildDuoInsights(matches, bestPair?.[0]),
+    positionComparison,
+    insights: buildDuoInsights(bottomMatches, bestPair?.[0], positionComparison),
     tilt: buildTiltStats(matches),
     cards: [
-      ["최근 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `최근 듀오 ${total}게임 중 ${wins}승`],
+      ["최근 바텀 듀오 승률", total ? `${Math.round((wins / total) * 100)}%` : "-", `최근 바텀 듀오 ${total}게임 중 ${wins}승`],
       ["평균 듀오 KDA", kda, `합산 ${kdaKills}/${kdaDeaths}/${kdaAssists}`],
       ["킬 관여율", total ? `${Math.round(killParticipation / total)}%` : "-", "두 명 합산 평균"],
       ["첫 용 연결률", total ? `${Math.round((firstDragons / total) * 100)}%` : "-", "팀 첫 용 획득 기준"],
       ["베스트 조합", bestPair ? bestPair[0] : "-", bestPair ? `${bestPair[1]}게임 표본` : "데이터 수집 전"],
-      ["최근 5게임 흐름", recentFive.length ? `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패` : "-", "가장 최근 듀오 게임 기준"],
-      ["평균 게임 시간", total ? `${avgDuration}분` : "-", "최근 듀오 게임 평균"],
+      ["최근 5게임 흐름", recentFive.length ? `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패` : "-", "가장 최근 바텀 듀오 게임 기준"],
+      ["평균 게임 시간", total ? `${avgDuration}분` : "-", "최근 바텀 듀오 게임 평균"],
       ["평균 듀오 킬", total ? `${avgDuoKills}킬` : "-", "두 명 합산 평균"],
     ],
   };
 }
 
-function buildDuoInsights(matches, bestPairName) {
+function buildPositionComparison(matches) {
+  return POSITION_COMPARISON_GROUPS.map((group) => {
+    const groupMatches = matches.filter((match) => {
+      const key = match.positionGroup || (isBottomDuoMatch(match) ? "bottomSupport" : "other");
+      return key === group.key;
+    });
+    const wins = groupMatches.filter((match) => match.win).length;
+    return {
+      key: group.key,
+      label: group.label,
+      games: groupMatches.length,
+      wins,
+      winRate: groupMatches.length ? Math.round((wins / groupMatches.length) * 100) : null,
+    };
+  });
+}
+
+function buildDuoInsights(matches, bestPairName, positionComparison = []) {
   const total = matches.length;
   if (!total) {
     return [
       ["동기화 상태", "대기", "Riot API에서 바텀 듀오 게임을 가져오는 중"],
       ["저장된 게임", "0", "아직 DB에 저장된 실제 듀오 게임이 없음"],
       ["추천 카드", "-", "첫 동기화 후 최고 조합 기준으로 자동 변경"],
-      ["픽창 상태", "대기", "픽창 감지 시 추천 패널 자동 표시"],
+      ["포지션 승률 비교", "대기", "동기화 후 원딜/미드/탑/정글+서폿 비교 표시"],
     ];
   }
 
@@ -1089,9 +1189,16 @@ function buildDuoInsights(matches, bestPairName) {
   const firstDragonRate = Math.round((matches.filter((match) => match.firstDragon).length / total) * 100);
   const avgDuoDeaths = (matches.reduce((sum, match) => sum + match.duoKda.deaths, 0) / total).toFixed(1);
 
+  const comparisonCards = positionComparison.map((group) => [
+    group.label,
+    group.games ? `${group.winRate}%` : "-",
+    group.games ? `${group.games}게임 중 ${group.wins}승` : "표본 없음",
+  ]);
+
   return [
     ["최근 5게임 흐름", `${recentFiveWins}승 ${recentFive.length - recentFiveWins}패`, "가장 최근 바텀 듀오 게임 기준"],
     ["최고 조합 승률", bestPairMatches.length ? `${Math.round((bestPairWins / bestPairMatches.length) * 100)}%` : "-", bestPairName || "데이터 수집 전"],
+    ...comparisonCards,
     ["평균 게임 시간", `${avgDuration}분`, "저장된 바텀 듀오 게임 평균"],
     ["평균 킬 관여", `${avgKillParticipation}%`, "두 명의 killParticipation 평균"],
     ["첫 용 확보", `${firstDragonRate}%`, "우리 팀 첫 용 획득 비율"],

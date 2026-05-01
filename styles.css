@@ -151,15 +151,14 @@ a {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 46px;
   aspect-ratio: 1;
-  border: 2px solid var(--ink);
   border-radius: 50%;
-  background: var(--gold);
-  font-weight: 900;
-  box-shadow: 3px 4px 0 rgba(40, 49, 66, 0.14);
+  background: url("./assets/site-icon.png") center / cover no-repeat;
+  box-shadow:
+    0 8px 16px rgba(40, 49, 66, 0.16),
+    0 2px 4px rgba(40, 49, 66, 0.14);
 }
 
 .result-toolbar small,
@@ -1755,83 +1754,35 @@ select {
   place-items: center;
   width: 38px;
   aspect-ratio: 1;
-  border: 2px solid var(--ink);
+  border: 2px solid rgba(40, 49, 66, 0.86);
   border-radius: 50%;
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35), 2px 3px 0 rgba(40, 49, 66, 0.12);
+  overflow: hidden;
+  box-shadow:
+    2px 3px 0 rgba(40, 49, 66, 0.12);
 }
 
 .champion-token.adc {
-  background:
-    repeating-linear-gradient(118deg, rgba(49, 167, 97, 0.16) 0 2px, transparent 2px 7px),
-    #c8f2d8;
+  background: #b98200;
 }
 
 .champion-token.support {
-  background:
-    repeating-linear-gradient(118deg, rgba(224, 167, 37, 0.18) 0 2px, transparent 2px 7px),
-    #ffe08a;
+  background: #ffefb1;
 }
 
-.bow-icon,
-.sprout-icon {
+.poro-image-icon,
+.sprout-image-icon {
   position: relative;
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 100%;
 }
 
-.bow-icon::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 4px;
-  width: 15px;
-  height: 15px;
-  border-left: 3px solid #21744b;
-  border-top: 3px solid #21744b;
-  border-radius: 100% 0 0 0;
-  transform: rotate(-34deg);
+.poro-image-icon {
+  background: url("./assets/poro-adc.png") center / contain no-repeat;
 }
 
-.bow-icon::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  top: 11px;
-  width: 14px;
-  height: 3px;
-  border-radius: 999px;
-  background: #21744b;
-  box-shadow: -2px -5px 0 -1px #21744b, -2px 5px 0 -1px #21744b;
-  transform: rotate(-22deg);
-}
-
-.sprout-icon::before,
-.sprout-icon::after {
-  content: "";
-  position: absolute;
-  top: 4px;
-  width: 13px;
-  height: 16px;
-  border: 2px solid #20985d;
-  background: #9bf0b9;
-}
-
-.sprout-icon::before {
-  left: 2px;
-  border-radius: 12px 12px 2px 12px;
-  transform: rotate(-28deg);
-}
-
-.sprout-icon::after {
-  right: 2px;
-  border-radius: 12px 12px 12px 2px;
-  transform: rotate(28deg);
-}
-
-.sprout-icon {
-  border-bottom: 3px solid #20985d;
-  border-radius: 0 0 999px 999px;
+.sprout-image-icon {
+  background: url("./assets/sprout-support.png") center / cover no-repeat;
 }
 
 .tier-badge {
