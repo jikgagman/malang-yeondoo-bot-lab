@@ -596,14 +596,22 @@ function tierDelta(delta) {
   return `<span class="tier-delta ${value > 0 ? "up" : "down"}">${sign} ${Math.abs(value)}</span>`;
 }
 
-function renderLaneTierList(target, champions) {
+function renderRoleIcon(role) {
+  return `
+    <span class="champion-token ${role}" aria-hidden="true">
+      <span class="${role === "adc" ? "bow-icon" : "sprout-icon"}"></span>
+    </span>
+  `;
+}
+
+function renderLaneTierList(target, champions, role) {
   target.innerHTML = champions
     .map(
       (champion, index) => `
         <article class="tier-row">
           <span class="tier-rank">${index + 1}</span>
           ${tierDelta(champion.delta)}
-          <span class="champion-token">${champion.champion.slice(0, 1)}</span>
+          ${renderRoleIcon(role)}
           <strong>${champion.champion}</strong>
           <span class="tier-badge tier-${champion.tier}">${champion.tier}</span>
           <span>${Number(champion.winRate).toFixed(2)}%</span>
@@ -625,8 +633,8 @@ async function loadChampionTiers(group = state.tierGroup) {
     const response = await fetch(apiUrl(`/api/champion-tiers?group=${encodeURIComponent(group)}`), { cache: "no-store" });
     if (!response.ok) throw new Error("tier unavailable");
     const payload = await response.json();
-    renderLaneTierList($("#adcTierList"), payload.tiers.adc || []);
-    renderLaneTierList($("#supportTierList"), payload.tiers.support || []);
+    renderLaneTierList($("#adcTierList"), payload.tiers.adc || [], "adc");
+    renderLaneTierList($("#supportTierList"), payload.tiers.support || [], "support");
     const updated = new Date(payload.updatedAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     $("#adcTierUpdated").textContent = `${payload.label} · ${updated}`;
     $("#supportTierUpdated").textContent = `${payload.label} · ${updated}`;

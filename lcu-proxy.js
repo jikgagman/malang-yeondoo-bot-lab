@@ -9,6 +9,7 @@ const PORT = Number(process.env.PORT || 4173);
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const CACHE_FILE = path.join(DATA_DIR, "duo-stats-cache.json");
+const CHAMPION_TIER_CACHE_FILE = path.join(DATA_DIR, "champion-tiers-cache.json");
 const DB_FILE = path.join(DATA_DIR, "duo.sqlite");
 const SEED_FILE = path.join(ROOT, "seed", "duo-matches.json");
 const RIOT_REGION = process.env.RIOT_REGION || "asia";
@@ -79,11 +80,30 @@ const championIdMap = {
 };
 
 const championNameMap = {
+  Alistar: "알리스타",
+  Aphelios: "아펠리오스",
   Ashe: "애쉬",
+  "Aurelion Sol": "아우렐리온 솔",
+  AurelionSol: "아우렐리온 솔",
+  Bard: "바드",
   Blitzcrank: "블리츠크랭크",
+  Brand: "브랜드",
+  Braum: "브라움",
+  Caitlyn: "케이틀린",
+  Corki: "코르키",
+  Draven: "드레이븐",
+  Ezreal: "이즈리얼",
+  Janna: "잔나",
   Jhin: "진",
   Jinx: "징크스",
+  Kalista: "칼리스타",
+  Karma: "카르마",
+  Karthus: "카서스",
+  Katarina: "카타리나",
   Kaisa: "카이사",
+  "Kai'Sa": "카이사",
+  KogMaw: "코그모",
+  "Kog'Maw": "코그모",
   LeeSin: "리 신",
   Leona: "레오나",
   Lux: "럭스",
@@ -91,12 +111,43 @@ const championNameMap = {
   Malphite: "말파이트",
   Milio: "밀리오",
   MissFortune: "미스 포츈",
+  "Miss Fortune": "미스 포츈",
+  Morgana: "모르가나",
   Nautilus: "노틸러스",
+  Nilah: "닐라",
+  Nami: "나미",
+  Poppy: "뽀삐",
+  Pyke: "파이크",
   Rakan: "라칸",
+  Rell: "렐",
+  Samira: "사미라",
+  Senna: "세나",
   Seraphine: "세라핀",
+  Sivir: "시비르",
   Sion: "사이온",
+  Smolder: "스몰더",
+  Sona: "소나",
+  Soraka: "소라카",
+  Swain: "스웨인",
+  Thresh: "쓰레쉬",
+  Tristana: "트리스타나",
+  Twitch: "트위치",
+  Varus: "바루스",
+  Vayne: "베인",
+  Velkoz: "벨코즈",
+  "Vel'Koz": "벨코즈",
+  Vladimir: "블라디미르",
+  Xerath: "제라스",
   Xayah: "자야",
+  Yasuo: "야스오",
+  Yone: "요네",
+  Yuumi: "유미",
+  Zac: "자크",
+  Zeri: "제리",
   Ziggs: "직스",
+  Zilean: "질리언",
+  Syndra: "신드라",
+  Zyra: "자이라",
 };
 
 const CHAMPION_TIERS = {
@@ -193,6 +244,20 @@ const CHAMPION_TIERS = {
     ],
   },
 };
+
+const CHAMPION_TIER_GROUPS = {
+  low: { label: "브실골플", sourceTier: "gold_plus" },
+  emerald: { label: "에메+", sourceTier: "emerald_plus" },
+  diamond: { label: "다이아", sourceTier: "diamond" },
+  challenger: { label: "챌린저", sourceTier: "challenger" },
+};
+
+const LOLALYTICS_LANES = {
+  adc: "bottom",
+  support: "support",
+};
+
+const CHAMPION_TIER_CACHE_MS = 6 * 60 * 60 * 1000;
 
 function loadEnvFile() {
   const envPath = path.join(ROOT, ".env");
@@ -673,6 +738,197 @@ async function riotRequestWithRetry(host, endpoint, retries = 2) {
     }
   }
   return null;
+}
+
+function textRequest(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      url,
+      {
+        method: "GET",
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "User-Agent": "malang-yeondoo-bot-lab/1.0",
+        },
+      },
+      (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          resolve(textRequest(new URL(response.headers.location, url).toString()));
+          return;
+        }
+
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          body += chunk;
+        });
+        response.on("end", () => {
+          if (response.statusCode >= 400) {
+            reject(new Error(`Tier source ${response.statusCode}: ${body.slice(0, 120)}`));
+            return;
+          }
+          resolve(body);
+        });
+      },
+    );
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+function decodeHtml(text) {
+  return text
+    .replaceAll("&nbsp;", " ")
+    .replaceAll("&amp;", "&")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">");
+}
+
+function htmlTextLines(html) {
+  return decodeHtml(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, "\n"),
+  )
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function percentNumber(value) {
+  const parsed = Number(String(value || "").replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sourceTierToLocalTier(sourceTier) {
+  if (/^S/i.test(sourceTier)) return 1;
+  if (/^A/i.test(sourceTier)) return 2;
+  if (/^B/i.test(sourceTier)) return 3;
+  return 4;
+}
+
+function normalizeChampionName(name) {
+  return championNameMap[name] || championNameMap[name.replace(/[^A-Za-z]/g, "")] || name;
+}
+
+function parseLolalyticsTierHtml(html) {
+  const lines = htmlTextLines(html);
+  let cursor = lines.indexOf("Elo") + 1;
+  if (cursor <= 0) throw new Error("티어 테이블을 찾지 못했어요.");
+
+  const rows = [];
+  while (cursor < lines.length && rows.length < 8) {
+    while (cursor < lines.length && !/^\d+$/.test(lines[cursor])) cursor += 1;
+    if (cursor >= lines.length) break;
+
+    const rank = Number(lines[cursor]);
+    if (!Number.isFinite(rank) || rank <= 0 || rank > 200) {
+      cursor += 1;
+      continue;
+    }
+
+    const champion = lines[cursor + 1];
+    const sourceTier = lines[cursor + 4];
+    const winRate = percentNumber(lines[cursor + 6]);
+    let next = cursor + 7;
+    let delta = 0;
+
+    if (lines[next] === "+" || lines[next] === "-") {
+      const sign = lines[next] === "+" ? 1 : -1;
+      delta = sign * percentNumber(lines[next + 1]);
+      next += 2;
+    } else if (/^-\d+(?:\.\d+)?$/.test(lines[next])) {
+      delta = percentNumber(lines[next]);
+      next += 1;
+    }
+
+    const pickRate = percentNumber(lines[next]);
+    const banRate = percentNumber(lines[next + 1]);
+    const sample = Number(String(lines[next + 3] || "").replace(/,/g, ""));
+
+    if (champion && sourceTier && winRate && Number.isFinite(sample)) {
+      rows.push({
+        champion: normalizeChampionName(champion),
+        tier: sourceTierToLocalTier(sourceTier),
+        sourceTier,
+        ps: Number((winRate + pickRate * 0.25 - banRate * 0.05).toFixed(2)),
+        winRate,
+        pickRate,
+        banRate,
+        sample,
+        delta: Number(delta.toFixed(2)),
+      });
+    }
+
+    cursor = next + 9;
+  }
+
+  if (!rows.length) throw new Error("티어 데이터를 읽지 못했어요.");
+  return rows;
+}
+
+function readChampionTierCache() {
+  if (!fs.existsSync(CHAMPION_TIER_CACHE_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(CHAMPION_TIER_CACHE_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeChampionTierCache(cache) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CHAMPION_TIER_CACHE_FILE, JSON.stringify(cache, null, 2));
+}
+
+async function fetchLiveChampionTierLane(group, role) {
+  const sourceTier = CHAMPION_TIER_GROUPS[group]?.sourceTier || CHAMPION_TIER_GROUPS.low.sourceTier;
+  const lane = LOLALYTICS_LANES[role];
+  const url = `https://lolalytics.com/lol/tierlist/?lane=${encodeURIComponent(lane)}&tier=${encodeURIComponent(sourceTier)}`;
+  return parseLolalyticsTierHtml(await textRequest(url));
+}
+
+async function championTierPayload(group) {
+  const safeGroup = CHAMPION_TIER_GROUPS[group] ? group : "low";
+  const cached = readChampionTierCache();
+  const cachedEntry = cached[safeGroup];
+  const now = Date.now();
+  if (cachedEntry && now - cachedEntry.fetchedAt < CHAMPION_TIER_CACHE_MS) {
+    return { ...cachedEntry.payload, source: "lolalytics-cache" };
+  }
+
+  try {
+    const [adc, support] = await Promise.all([fetchLiveChampionTierLane(safeGroup, "adc"), fetchLiveChampionTierLane(safeGroup, "support")]);
+    const payload = {
+      ok: true,
+      group: safeGroup,
+      label: CHAMPION_TIER_GROUPS[safeGroup].label,
+      updatedAt: new Date().toISOString(),
+      minPickRate: "0.5%",
+      source: "lolalytics",
+      tiers: { label: CHAMPION_TIER_GROUPS[safeGroup].label, adc, support },
+    };
+    cached[safeGroup] = { fetchedAt: now, payload };
+    writeChampionTierCache(cached);
+    return payload;
+  } catch (error) {
+    if (cachedEntry?.payload) return { ...cachedEntry.payload, source: "lolalytics-cache", warning: error.message };
+    const tiers = CHAMPION_TIERS[safeGroup] || CHAMPION_TIERS.low;
+    return {
+      ok: true,
+      group: safeGroup,
+      label: tiers.label,
+      updatedAt: new Date().toISOString(),
+      minPickRate: "0.5%",
+      source: "fallback",
+      warning: error.message,
+      tiers,
+    };
+  }
 }
 
 function riotAccountEndpoint(player) {
@@ -1176,15 +1432,7 @@ const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, `http://localhost:${PORT}`);
       const group = url.searchParams.get("group") || "low";
-      const tiers = CHAMPION_TIERS[group] || CHAMPION_TIERS.low;
-      sendJson(response, 200, {
-        ok: true,
-        group: CHAMPION_TIERS[group] ? group : "low",
-        label: tiers.label,
-        updatedAt: new Date().toISOString(),
-        minPickRate: "0.5%",
-        tiers,
-      });
+      sendJson(response, 200, await championTierPayload(group));
     } catch (error) {
       sendJson(response, 400, {
         ok: false,
