@@ -156,6 +156,7 @@ a {
   aspect-ratio: 1;
   border-radius: 50%;
   background: url("./assets/site-icon.png") center / cover no-repeat;
+  overflow: hidden;
   box-shadow:
     0 8px 16px rgba(40, 49, 66, 0.16),
     0 2px 4px rgba(40, 49, 66, 0.14);
@@ -1727,11 +1728,14 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 72px;
   min-height: 28px;
   padding: 0 8px;
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .tier-delta.up {

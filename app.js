@@ -593,7 +593,7 @@ function tierDelta(delta) {
   const value = Number(delta || 0);
   if (!value) return `<span class="tier-delta same">-</span>`;
   const sign = value > 0 ? "↑" : "↓";
-  return `<span class="tier-delta ${value > 0 ? "up" : "down"}">${sign} ${Math.abs(value)}</span>`;
+  return `<span class="tier-delta ${value > 0 ? "up" : "down"}">${sign}&nbsp;${Math.abs(value)}</span>`;
 }
 
 function renderRoleIcon(role) {
