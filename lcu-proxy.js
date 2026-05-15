@@ -1275,12 +1275,19 @@ async function statsPayload(forceRefresh = false) {
 
 function lockfileCandidates() {
   const home = os.homedir();
+  const windowsRoots = ["C", "D", "E", "F", "G"].flatMap((drive) => [
+    `${drive}:/Riot Games/League of Legends/lockfile`,
+    `${drive}:/Program Files/Riot Games/League of Legends/lockfile`,
+    `${drive}:/Program Files (x86)/Riot Games/League of Legends/lockfile`,
+    `${drive}:/League of Legends/lockfile`,
+    `${drive}:/LOL/League of Legends/lockfile`,
+    `${drive}:/Games/League of Legends/lockfile`,
+  ]);
   return [
     "/Applications/League of Legends.app/Contents/LoL/lockfile",
     path.join(home, "Applications/League of Legends.app/Contents/LoL/lockfile"),
     path.join(home, "Library/Application Support/Riot Games/League of Legends/lockfile"),
-    "C:/Riot Games/League of Legends/lockfile",
-    "C:/Program Files/Riot Games/League of Legends/lockfile",
+    ...windowsRoots,
   ];
 }
 

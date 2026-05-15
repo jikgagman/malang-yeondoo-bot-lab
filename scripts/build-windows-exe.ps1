@@ -19,6 +19,6 @@ Invoke-PS2EXE `
   -Description "LoL game tilt counter overlay for Malang and Yeondoo" `
   -Company "Malang Yeondoo Bot Lab" `
   -Product "Malang Yeondoo Overlay" `
-  -Version "0.3.0"
+  -Version "0.3.1"
 
 Write-Host "Built $target"

@@ -241,6 +241,15 @@ function setLiveStatus(status, title, detail) {
   $("#liveStatusDetail").textContent = detail;
 }
 
+function liveErrorDetail(payload) {
+  const error = payload?.error || "";
+  const isHosted = window.location.hostname.includes("onrender.com");
+  if (isHosted) {
+    return "배포 페이지는 피시방 PC 안의 LoL 클라이언트에 직접 접근할 수 없어요. 실시간 감지는 PC에서 로컬 헬퍼를 같이 실행해야 작동합니다.";
+  }
+  return error || "아직 픽창 신호가 없어요. LoL 클라이언트와 로컬 프록시 실행 상태를 확인해주세요.";
+}
+
 function updateLiveSession(payload) {
   const inChampionSelect = payload?.phase === "ChampSelect" && payload?.champSelect;
   state.phase = payload?.phase || "None";
@@ -250,9 +259,9 @@ function updateLiveSession(payload) {
 
   if (!inChampionSelect) {
     setLiveStatus(
-      "idle",
+      payload?.ok ? "idle" : "error",
       payload?.ok ? "LoL 클라이언트 대기 중" : "픽창 신호 대기 중",
-      payload?.ok ? `현재 상태: ${state.phase}` : "아직 픽창 신호가 없어요. 실제 게임에서 픽창에 들어가면 자동 분석 화면으로 전환됩니다.",
+      payload?.ok ? `현재 상태: ${state.phase}` : liveErrorDetail(payload),
     );
     $("#livePanel").classList.add("is-sleeping");
     $("#phaseLabel").textContent = state.phase;
@@ -680,7 +689,10 @@ async function pollLiveClient() {
     const mock = params.get("mock");
     const endpoint = mock ? `/api/live?mock=${encodeURIComponent(mock)}` : "/api/live";
     const response = await fetch(apiUrl(endpoint), { cache: "no-store" });
-    if (!response.ok) throw new Error("proxy unavailable");
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error || "proxy unavailable");
+    }
     const payload = await response.json();
     updateLiveSession(payload);
   } catch (error) {
@@ -707,8 +719,47 @@ function bindEvents() {
   });
 }
 
+function initSectionRail() {
+  const links = [...document.querySelectorAll("[data-section-link]")];
+  const sections = links
+    .map((link) => document.getElementById(link.dataset.sectionLink))
+    .filter(Boolean);
+  if (!links.length || !sections.length) return;
+
+  const setActive = (id) => {
+    links.forEach((link) => {
+      link.classList.toggle("is-active", link.dataset.sectionLink === id);
+    });
+  };
+
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) setActive(visible.target.id);
+      },
+      { rootMargin: "-35% 0px -45% 0px", threshold: [0.12, 0.28, 0.5] },
+    );
+    sections.forEach((section) => observer.observe(section));
+    return;
+  }
+
+  const sync = () => {
+    const current = sections.reduce((best, section) => {
+      const distance = Math.abs(section.getBoundingClientRect().top - window.innerHeight * 0.35);
+      return !best || distance < best.distance ? { id: section.id, distance } : best;
+    }, null);
+    if (current) setActive(current.id);
+  };
+  window.addEventListener("scroll", sync, { passive: true });
+  sync();
+}
+
 bindEvents();
 initUser();
+initSectionRail();
 renderStats();
 loadRiotStats();
 loadChampionTiers();

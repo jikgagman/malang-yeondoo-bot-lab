@@ -45,6 +45,21 @@ npm run start:overlay:windows
 
 Windows 런처는 LoL 클라이언트의 `lockfile`을 직접 읽고 LCU의 `/lol-gameflow/v1/gameflow-phase`를 2초마다 확인합니다. 상태가 `InProgress`가 되면 왼쪽 위에 작은 TopMost 오버레이 창을 띄웁니다. 게임이 끝나면 자동으로 숨깁니다.
 
+피시방에서 LoL이 D/E/F 드라이브나 별도 게임 폴더에 설치된 경우도 자동으로 찾습니다. 그래도 못 찾으면 아래처럼 직접 지정할 수 있습니다.
+
+```powershell
+$env:LCU_LOCKFILE="D:\Riot Games\League of Legends\lockfile"
+.\start-overlay-windows.cmd
+```
+
+문제 확인용 로그는 아래 파일에 남습니다.
+
+```text
+%TEMP%\MalangYeondooOverlay.log
+```
+
+LoL을 독점 전체화면으로 켜면 Windows의 일반 TopMost 창이 게임 위에 안 보일 수 있습니다. 오버레이가 안 보이면 LoL 화면 모드를 `테두리 없음` 또는 `창 모드`로 바꿔 테스트하세요.
+
 macOS에서 테스트할 때는 아래 명령을 씁니다.
 
 ```bash
@@ -130,7 +145,7 @@ op.gg 같은 사이트를 계속 긁는 방식은 권장하지 않습니다. 안
 
 웹앱은 `/api/live`를 2.5초마다 폴링합니다. 현재 상태가 `ChampSelect`이면 추천 패널과 3코어 빌드 패널이 자동으로 열립니다.
 
-오버레이 런처는 같은 `/api/live`를 읽고 현재 상태가 `InProgress`이면 짜증 카운트 오버레이를 왼쪽 위에 띄웁니다.
+Windows 오버레이 런처는 PC 안의 LCU에서 현재 상태가 `InProgress`인지 확인하고, 짜증 카운트는 배포 서버의 `/api/tilt`에 저장합니다.
 
 macOS에서 lockfile 경로가 다르면 이렇게 직접 지정할 수 있습니다.
 
@@ -149,3 +164,5 @@ Render 배포 서버는 전적 통계와 DB 캐시를 제공합니다. 다만 �
 - 배포 웹앱이 로컬 프록시를 읽도록 허용
 
 이 구조가 제일 현실적입니다.
+
+현재 `MalangYeondooOverlay.exe`는 짜증 카운트용 게임 오버레이입니다. 픽창 추천까지 피시방에서 자동으로 띄우려면 같은 방식으로 `/api/live` 로컬 프록시까지 포함한 Windows 헬퍼 앱을 별도로 패키징해야 합니다.

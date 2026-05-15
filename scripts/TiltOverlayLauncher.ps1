@@ -4,9 +4,13 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $TiltUrl = if ($env:TILT_API_URL) { $env:TILT_API_URL } else { "https://malang-yeondoo-bot-lab.onrender.com/api/tilt" }
+$LogFile = Join-Path $env:TEMP "MalangYeondooOverlay.log"
 $PollMs = 2000
 $GameIsActive = $false
 $SessionId = ""
+$LastPhase = ""
+$LastLockfilePath = ""
+$LastLockfileLogAt = Get-Date "2000-01-01"
 $Counts = @{
   malang = 0
   yeondoo = 0
@@ -19,21 +23,42 @@ function New-SessionId {
   return "game-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
 }
 
+function Write-OverlayLog {
+  param([string]$Message)
+  $line = "$(Get-Date -Format "yyyy-MM-dd HH:mm:ss") $Message"
+  Add-Content -Path $script:LogFile -Value $line
+}
+
 function Get-LockfilePath {
   $candidates = @()
   if ($env:LCU_LOCKFILE) {
     $candidates += $env:LCU_LOCKFILE
   }
-  $candidates += @(
-    "C:\Riot Games\League of Legends\lockfile",
-    "C:\Program Files\Riot Games\League of Legends\lockfile",
-    "C:\Program Files (x86)\Riot Games\League of Legends\lockfile"
-  )
+
+  foreach ($drive in @("C", "D", "E", "F", "G")) {
+    $candidates += @(
+      "${drive}:\Riot Games\League of Legends\lockfile",
+      "${drive}:\Program Files\Riot Games\League of Legends\lockfile",
+      "${drive}:\Program Files (x86)\Riot Games\League of Legends\lockfile",
+      "${drive}:\League of Legends\lockfile",
+      "${drive}:\LOL\League of Legends\lockfile",
+      "${drive}:\Games\League of Legends\lockfile"
+    )
+  }
 
   foreach ($path in $candidates) {
     if (Test-Path $path) {
+      if ($script:LastLockfilePath -ne $path) {
+        $script:LastLockfilePath = $path
+        Write-OverlayLog "lockfile found: $path"
+      }
       return $path
     }
+  }
+
+  if (((Get-Date) - $script:LastLockfileLogAt).TotalSeconds -gt 30) {
+    $script:LastLockfileLogAt = Get-Date
+    Write-OverlayLog "lockfile not found. Set LCU_LOCKFILE if LoL is installed in a custom PC-bang path."
   }
   return $null
 }
@@ -41,11 +66,21 @@ function Get-LockfilePath {
 function Get-GameflowPhase {
   $lockfilePath = Get-LockfilePath
   if (-not $lockfilePath) {
+    Set-StatusText "LoL 대기"
     return "Disconnected"
   }
 
-  $parts = (Get-Content $lockfilePath -Raw).Trim().Split(":")
+  $lockfileContent = Get-Content $lockfilePath -Raw -ErrorAction SilentlyContinue
+  if (-not $lockfileContent) {
+    Write-OverlayLog "empty lockfile: $lockfilePath"
+    Set-StatusText "lockfile 대기"
+    return "Disconnected"
+  }
+
+  $parts = $lockfileContent.Trim().Split(":")
   if ($parts.Length -lt 5) {
+    Write-OverlayLog "invalid lockfile format: $lockfilePath"
+    Set-StatusText "lockfile 오류"
     return "Disconnected"
   }
 
@@ -55,11 +90,14 @@ function Get-GameflowPhase {
   $auth = [Convert]::ToBase64String($authBytes)
 
   try {
-    return Invoke-RestMethod `
+    $phase = Invoke-RestMethod `
       -Uri "https://127.0.0.1:$port/lol-gameflow/v1/gameflow-phase" `
       -Headers @{ Authorization = "Basic $auth" } `
       -TimeoutSec 2
+    return $phase
   } catch {
+    Write-OverlayLog "LCU request failed: $($_.Exception.Message)"
+    Set-StatusText "LCU 연결 대기"
     return "Disconnected"
   }
 }
@@ -77,7 +115,9 @@ function Invoke-TiltCount {
     Invoke-RestMethod -Uri $script:TiltUrl -Method Post -ContentType "application/json" -Body $body -TimeoutSec 4 | Out-Null
     $script:Counts[$Player] = [int]$script:Counts[$Player] + 1
     Update-Counts
+    Write-OverlayLog "tilt counted: $Player session=$($script:SessionId)"
   } catch {
+    Write-OverlayLog "tilt API failed: $($_.Exception.Message)"
     [System.Media.SystemSounds]::Beep.Play()
   }
 }
@@ -85,6 +125,13 @@ function Invoke-TiltCount {
 function Update-Counts {
   $script:MalangButton.Text = "말랑`r`n$($script:Counts.malang)"
   $script:YeondooButton.Text = "연두`r`n$($script:Counts.yeondoo)"
+}
+
+function Set-StatusText {
+  param([string]$Text)
+  if ($script:StatusLabel) {
+    $script:StatusLabel.Text = $Text
+  }
 }
 
 function Reset-Game {
@@ -97,9 +144,11 @@ function Reset-Game {
 function Show-Overlay {
   if (-not $script:GameIsActive) {
     Reset-Game
+    Write-OverlayLog "overlay shown session=$($script:SessionId)"
   }
   $script:GameIsActive = $true
   $script:Form.Location = New-Object System.Drawing.Point(14, 14)
+  Set-StatusText "게임 중"
   $script:Form.Show()
   $script:Form.TopMost = $true
   $script:Form.Activate()
@@ -108,6 +157,7 @@ function Show-Overlay {
 function Hide-Overlay {
   if ($script:GameIsActive) {
     $script:GameIsActive = $false
+    Write-OverlayLog "overlay hidden"
     $script:Form.Hide()
   }
 }
@@ -126,8 +176,15 @@ $script:Form.Font = New-Object System.Drawing.Font("Malgun Gothic", 9, [System.D
 $header = New-Object System.Windows.Forms.Label
 $header.Text = "짜증"
 $header.Location = New-Object System.Drawing.Point(10, 7)
-$header.Size = New-Object System.Drawing.Size(44, 18)
+$header.Size = New-Object System.Drawing.Size(42, 18)
 $script:Form.Controls.Add($header)
+
+$script:StatusLabel = New-Object System.Windows.Forms.Label
+$script:StatusLabel.Text = "LoL 대기"
+$script:StatusLabel.Location = New-Object System.Drawing.Point(56, 7)
+$script:StatusLabel.Size = New-Object System.Drawing.Size(105, 18)
+$script:StatusLabel.ForeColor = [System.Drawing.Color]::FromArgb(92, 100, 116)
+$script:Form.Controls.Add($script:StatusLabel)
 
 $resetButton = New-Object System.Windows.Forms.Button
 $resetButton.Text = "↻"
@@ -156,6 +213,13 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $PollMs
 $timer.Add_Tick({
   $phase = Get-GameflowPhase
+  if ($script:LastPhase -ne $phase) {
+    $script:LastPhase = $phase
+    Write-OverlayLog "gameflow phase: $phase"
+    if ($phase -ne "InProgress") {
+      Set-StatusText $phase
+    }
+  }
   if ($phase -eq "InProgress") {
     Show-Overlay
   } else {
@@ -164,6 +228,7 @@ $timer.Add_Tick({
 })
 
 $script:Form.Add_Shown({
+  Write-OverlayLog "launcher started. log=$($script:LogFile)"
   $script:Form.Hide()
   $timer.Start()
 })

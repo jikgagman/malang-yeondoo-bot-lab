@@ -187,6 +187,74 @@ a {
   background: white;
 }
 
+.section-rail {
+  position: fixed;
+  right: clamp(12px, 2vw, 30px);
+  top: 50%;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 9px 7px;
+  border: 1px solid rgba(218, 224, 230, 0.8);
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(112deg, rgba(122, 83, 38, 0.04) 0 1px, transparent 1px 7px),
+    rgba(255, 252, 244, 0.88);
+  box-shadow: 0 12px 28px rgba(40, 49, 66, 0.12);
+  transform: translateY(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.section-rail a {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(40, 49, 66, 0.2);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.section-rail a::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  width: max-content;
+  padding: 7px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 rgba(40, 49, 66, 0.14);
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.section-rail a:hover,
+.section-rail a:focus-visible,
+.section-rail a.is-active {
+  background: var(--mint);
+  box-shadow: 0 0 0 4px rgba(91, 198, 140, 0.18);
+  transform: scaleX(1.25);
+}
+
+.section-rail a:hover::after,
+.section-rail a:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
 .ghost-button,
 .draft-header button,
 .pick-token,
@@ -1856,6 +1924,10 @@ select {
 }
 
 @media (max-width: 640px) {
+  .section-rail {
+    display: none;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-wrap: wrap;
