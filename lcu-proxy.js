@@ -14,6 +14,7 @@ const DB_FILE = path.join(DATA_DIR, "duo.sqlite");
 const SEED_FILE = path.join(ROOT, "seed", "duo-matches.json");
 const RIOT_REGION = process.env.RIOT_REGION || "asia";
 const RIOT_PLATFORM = process.env.RIOT_PLATFORM || "kr";
+const REMOTE_API_BASE = (process.env.REMOTE_API_BASE || "").replace(/\/$/, "");
 const STATS_WINDOW = 20;
 const MATCH_SCAN_COUNT = 80;
 const DUO_PLAYERS = [
@@ -1468,6 +1469,50 @@ function readRequestJson(request) {
   });
 }
 
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    request.on("data", (chunk) => {
+      chunks.push(chunk);
+      size += chunk.length;
+      if (size > 100_000) {
+        reject(new Error("요청이 너무 커요."));
+        request.destroy();
+      }
+    });
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
+
+async function forwardRemoteApi(request, response) {
+  if (!REMOTE_API_BASE) return false;
+  if (!["/api/stats", "/api/champion-tiers", "/api/tilt"].some((prefix) => request.url.startsWith(prefix))) {
+    return false;
+  }
+
+  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await readRequestBody(request);
+  const remoteResponse = await fetch(`${REMOTE_API_BASE}${request.url}`, {
+    method: request.method,
+    headers: {
+      "Content-Type": request.headers["content-type"] || "application/json",
+      Accept: "application/json",
+    },
+    body,
+  });
+  const text = await remoteResponse.text();
+  response.writeHead(remoteResponse.status, {
+    "Content-Type": remoteResponse.headers.get("content-type") || "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  });
+  response.end(text);
+  return true;
+}
+
 function serveStatic(request, response) {
   const url = new URL(request.url, `http://localhost:${PORT}`);
   const requestedPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
@@ -1494,7 +1539,8 @@ function serveStatic(request, response) {
   });
 }
 
-const server = http.createServer(async (request, response) => {
+function createAppServer() {
+  return http.createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     response.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
@@ -1502,6 +1548,17 @@ const server = http.createServer(async (request, response) => {
       "Access-Control-Allow-Headers": "Content-Type",
     });
     response.end();
+    return;
+  }
+
+  try {
+    if (await forwardRemoteApi(request, response)) return;
+  } catch (error) {
+    sendJson(response, 502, {
+      ok: false,
+      error: `원격 API 연결 실패: ${error.message}`,
+      updatedAt: new Date().toISOString(),
+    });
     return;
   }
 
@@ -1607,9 +1664,28 @@ const server = http.createServer(async (request, response) => {
   }
 
   serveStatic(request, response);
-});
+  });
+}
 
-server.listen(PORT, () => {
-  console.log(`말랑연두 바텀 연구소: http://localhost:${PORT}`);
-  console.log("LoL 클라이언트를 켠 뒤 픽창에 들어가면 자동 추천이 표시됩니다.");
-});
+function startServer(port = PORT, callback) {
+  const server = createAppServer();
+  server.listen(port, "127.0.0.1", () => {
+    const address = server.address();
+    const actualPort = typeof address === "object" && address ? address.port : port;
+    if (callback) callback(actualPort, server);
+    if (require.main === module) {
+      console.log(`말랑연두 바텀 연구소: http://localhost:${actualPort}`);
+      console.log("LoL 클라이언트를 켠 뒤 픽창에 들어가면 자동 추천이 표시됩니다.");
+    }
+  });
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  createAppServer,
+  startServer,
+};

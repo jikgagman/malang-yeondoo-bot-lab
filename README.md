@@ -87,6 +87,32 @@ Windows EXE는 GitHub Actions의 `Build Windows Overlay` 워크플로우가 `dis
 .\scripts\build-windows-exe.ps1
 ```
 
+## Windows 앱 방향
+
+피시방에서 가장 안정적인 방식은 웹사이트를 그대로 Windows 앱으로 묶는 것입니다. `BotLane Analytics` 앱은 Electron으로 실행되며, 앱 안에서 로컬 서버를 자동으로 띄웁니다.
+
+앱 구조:
+
+- 메인 화면: 기존 웹사이트 UI를 앱 창 안에 표시
+- 로컬 감지: 앱 내부 서버가 PC 안의 LoL `lockfile`과 LCU API를 직접 읽음
+- 전적/티어/짜증 DB: Render 서버(`https://malang-yeondoo-bot-lab.onrender.com`) API를 사용
+- 게임 중 오버레이: LCU 상태가 `InProgress`가 되면 왼쪽 위에 짜증 카운트 창을 자동 표시
+
+로컬에서 Electron 앱을 실행하려면 의존성을 설치한 뒤 실행합니다.
+
+```bash
+npm install
+npm run electron
+```
+
+Windows portable EXE 빌드는 아래 명령으로 만듭니다.
+
+```bash
+npm run build:windows-app
+```
+
+GitHub Actions의 `Build Windows App` 워크플로우가 `BotLane-Analytics-Windows.exe` 아티팩트를 생성합니다.
+
 ## Riot API 키
 
 제가 직접 Riot API 키를 발급하거나 넣은 것은 아닙니다. Riot API 키는 사용자가 [Riot Developer Portal](https://developer.riotgames.com/)에서 발급받아야 합니다.

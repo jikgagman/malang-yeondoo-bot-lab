@@ -3,12 +3,51 @@
   "version": "0.2.0",
   "private": true,
   "description": "말랑연두 바텀 듀오 전적 통계와 LoL 픽창 자동 추천 웹앱",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node lcu-proxy.js",
+    "electron": "electron .",
+    "build:windows-app": "electron-builder --win portable --x64",
     "overlay:mac": "swift scripts/TiltOverlayLauncher.swift",
     "overlay:windows": "powershell -ExecutionPolicy Bypass -File scripts/TiltOverlayLauncher.ps1",
     "start:overlay": "node scripts/run-local-overlay.mjs",
     "start:overlay:windows": "powershell -ExecutionPolicy Bypass -File scripts/TiltOverlayLauncher.ps1",
     "check": "node --check app.js && node --check lcu-proxy.js"
+  },
+  "devDependencies": {
+    "electron": "^30.5.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.malangyeondoo.botlaneanalytics",
+    "productName": "BotLane Analytics",
+    "files": [
+      "electron/**",
+      "assets/**",
+      "seed/**",
+      "index.html",
+      "overlay.html",
+      "styles.css",
+      "overlay.css",
+      "app.js",
+      "overlay.js",
+      "lcu-proxy.js",
+      "README.md",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/site-icon.png"
+    },
+    "portable": {
+      "artifactName": "BotLane-Analytics-Windows.exe"
+    }
   }
 }
